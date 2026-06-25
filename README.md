@@ -214,6 +214,12 @@ flag conflict, circular dependency, version mismatch, and unresolved pressure.
 They are intended for later UI display and history recording, not automatic
 resolution in this phase.
 
+Minimal package data types now live in `ArtForgeDeps`, including package ids,
+versions, flags, slots, dependencies, blockers, diagnostic severities, and
+diagnostic messages. See
+[docs/dependency-model/pressure-packages.md](docs/dependency-model/pressure-packages.md)
+for the first documented pressure package examples.
+
 A future world update view should show packages needing update, missing slots,
 unresolved conflicts, fragments not imported, tasks required before a version
 can be accepted, and works blocked by project-level decisions.

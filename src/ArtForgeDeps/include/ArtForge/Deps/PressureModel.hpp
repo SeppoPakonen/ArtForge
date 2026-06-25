@@ -1,7 +1,9 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace ArtForge::Deps {
 
@@ -43,6 +45,64 @@ enum class WorldUpdateItemKind {
     WorkBlockedByProjectDecision
 };
 
+enum class DependencyRelation {
+    Requires,
+    Recommends,
+    ConflictsWith
+};
+
+enum class DiagnosticSeverity {
+    Info,
+    Warning,
+    Error
+};
+
+struct PressurePackageId {
+    std::string value;
+};
+
+struct PackageVersion {
+    std::string value;
+};
+
+struct PressureFlag {
+    std::string name;
+    bool enabled{};
+};
+
+struct PressureSlot {
+    std::string name;
+    std::string requiredRole;
+};
+
+struct PressureDependency {
+    PressurePackageId packageId;
+    DependencyRelation relation{};
+    std::string reason;
+};
+
+struct PressureBlocker {
+    PressurePackageId packageId;
+    std::string reason;
+};
+
+struct PressureDiagnostic {
+    DiagnosticSeverity severity{};
+    DiagnosticCategory category{};
+    PressurePackageId packageId;
+    std::string message;
+};
+
+struct PressurePackage {
+    PressurePackageId id;
+    PackageKind kind{};
+    PackageVersion version;
+    std::vector<PressureFlag> flags;
+    std::vector<PressureSlot> slots;
+    std::vector<PressureDependency> dependencies;
+    std::vector<PressureBlocker> blockers;
+};
+
 struct PressureExample {
     std::string_view name;
     std::string_view description;
@@ -57,10 +117,16 @@ std::string_view PressureModelName();
 std::string_view ToDisplayName(PressureConcept pressureConcept);
 std::string_view ToDescription(PressureConcept pressureConcept);
 std::string_view ToDisplayName(PackageKind kind);
+std::string_view ToDisplayName(DependencyRelation relation);
 std::string_view ToDisplayName(DiagnosticCategory category);
+std::string_view ToDisplayName(DiagnosticSeverity severity);
 std::string_view ToDisplayName(WorldUpdateItemKind itemKind);
+std::string FormatDiagnosticMessage(const PressureDiagnostic& diagnostic);
 
 FlagExample LyricsLowFrictionPolicyFlagExample();
+PressurePackage LiveSoloPerformanceRequirementExample();
+PressurePackage LowCostMusicVideoRequirementExample();
+PressurePackage AlbumArcPressureRequirementExample();
 
 constexpr std::array<PressureConcept, 8> CorePressureConcepts{{
     PressureConcept::Package,

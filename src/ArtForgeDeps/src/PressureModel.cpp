@@ -1,5 +1,7 @@
 #include "ArtForge/Deps/PressureModel.hpp"
 
+#include <string>
+
 namespace ArtForge::Deps {
 
 std::string_view PressureModelName()
@@ -73,6 +75,20 @@ std::string_view ToDisplayName(PackageKind kind)
     return "unknown package kind";
 }
 
+std::string_view ToDisplayName(DependencyRelation relation)
+{
+    switch (relation) {
+    case DependencyRelation::Requires:
+        return "requires";
+    case DependencyRelation::Recommends:
+        return "recommends";
+    case DependencyRelation::ConflictsWith:
+        return "conflicts with";
+    }
+
+    return "unknown dependency relation";
+}
+
 std::string_view ToDisplayName(DiagnosticCategory category)
 {
     switch (category) {
@@ -95,6 +111,20 @@ std::string_view ToDisplayName(DiagnosticCategory category)
     return "unknown diagnostic category";
 }
 
+std::string_view ToDisplayName(DiagnosticSeverity severity)
+{
+    switch (severity) {
+    case DiagnosticSeverity::Info:
+        return "info";
+    case DiagnosticSeverity::Warning:
+        return "warning";
+    case DiagnosticSeverity::Error:
+        return "error";
+    }
+
+    return "unknown diagnostic severity";
+}
+
 std::string_view ToDisplayName(WorldUpdateItemKind itemKind)
 {
     switch (itemKind) {
@@ -115,6 +145,27 @@ std::string_view ToDisplayName(WorldUpdateItemKind itemKind)
     return "unknown world update item";
 }
 
+std::string FormatDiagnosticMessage(const PressureDiagnostic& diagnostic)
+{
+    std::string formatted;
+    formatted += "[";
+    formatted += ToDisplayName(diagnostic.severity);
+    formatted += "] ";
+    formatted += ToDisplayName(diagnostic.category);
+
+    if (!diagnostic.packageId.value.empty()) {
+        formatted += " for ";
+        formatted += diagnostic.packageId.value;
+    }
+
+    if (!diagnostic.message.empty()) {
+        formatted += ": ";
+        formatted += diagnostic.message;
+    }
+
+    return formatted;
+}
+
 FlagExample LyricsLowFrictionPolicyFlagExample()
 {
     return {
@@ -125,6 +176,82 @@ FlagExample LyricsLowFrictionPolicyFlagExample()
             "2010_language",
             "male_performer",
         }},
+    };
+}
+
+PressurePackage LiveSoloPerformanceRequirementExample()
+{
+    return {
+        {"live-solo-performance"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {
+            {"solo_performer", true},
+            {"portable_arrangement", true},
+            {"wide_vocal_range", false},
+        },
+        {
+            {"performance_context", "live solo set"},
+            {"arrangement", "portable arrangement"},
+        },
+        {
+            {{"singable-range"}, DependencyRelation::Requires, "melody must stay within the artist's reliable live range"},
+            {{"portable-instrumentation"}, DependencyRelation::Requires, "arrangement must work without unavailable collaborators"},
+        },
+        {
+            {{"studio-only-layering"}, "dense layered parts would block a solo live version"},
+        },
+    };
+}
+
+PressurePackage LowCostMusicVideoRequirementExample()
+{
+    return {
+        {"low-cost-music-video"},
+        PackageKind::ProjectFunction,
+        {"1.0"},
+        {
+            {"few_locations", true},
+            {"daylight_shooting", true},
+            {"licensed_props", false},
+        },
+        {
+            {"production_budget", "low-cost shoot"},
+            {"continuity", "edit-friendly continuity"},
+        },
+        {
+            {{"few-location-plan"}, DependencyRelation::Requires, "concept must fit a small number of locations"},
+            {{"daylight-availability"}, DependencyRelation::Requires, "shooting plan assumes available daylight"},
+        },
+        {
+            {{"licensed-prop-dependency"}, "licensed or rented props conflict with the low-cost constraint"},
+        },
+    };
+}
+
+PressurePackage AlbumArcPressureRequirementExample()
+{
+    return {
+        {"album-arc-pressure"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {
+            {"opening_contrast", true},
+            {"midpoint_escalation", true},
+            {"closing_resolution", true},
+        },
+        {
+            {"series_arc", "album or series narrative pressure"},
+            {"work_order", "compatible ordered works"},
+        },
+        {
+            {{"opening-contrast"}, DependencyRelation::Requires, "first work must establish contrast for the arc"},
+            {{"midpoint-escalation"}, DependencyRelation::Requires, "middle works must raise pressure"},
+            {{"closing-resolution"}, DependencyRelation::Requires, "final work must resolve selected pressures"},
+        },
+        {
+            {{"flat-track-order"}, "an order without contrast blocks the intended arc"},
+        },
     };
 }
 
