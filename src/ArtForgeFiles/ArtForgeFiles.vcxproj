@@ -13,8 +13,14 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <ItemGroup><ClInclude Include="include\ArtForge\Files\FileModel.hpp" /></ItemGroup>
-  <ItemGroup><ClCompile Include="src\FileModel.cpp" /></ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\ArtForge\Files\FileModel.hpp" />
+    <ClInclude Include="include\ArtForge\Files\ScopeFiles.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\FileModel.cpp" />
+    <ClCompile Include="src\ScopeFiles.cpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

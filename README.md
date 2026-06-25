@@ -63,6 +63,9 @@ Minimal scope file schemas are documented under `docs/file-formats/`, with
 sample JSON files under `examples/minimal/`.
 The persistent history JSON Lines format is documented in
 `docs/file-formats/afhistory.md`.
+`ArtForgeFiles` provides minimal load/save helpers for the solution, artist,
+series, and work scope JSON files. These helpers check that child references are
+relative paths, but they do not build a full project graph.
 
 One expected project folder shape is:
 
