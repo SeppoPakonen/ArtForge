@@ -93,6 +93,27 @@ HistoryItemFields PlannedHistoryItemFields()
     };
 }
 
+HistoryEvent SampleUserTextEditEvent()
+{
+    return {
+        {"hist.sample.0001"},
+        {"2026-06-25T00:00:00Z"},
+        HistoryActor::User,
+        HistoryScope::Work,
+        HistoryOperation::UserTextEdit,
+        "Edited opening lyric draft",
+        R"(["work.afwork","drafts/opening.md"])",
+        "snapshots/000001.json",
+        "snapshots/000002.json",
+        {"", ""},
+    };
+}
+
+std::string_view SampleUserTextEditJsonLine()
+{
+    return R"({"id":"hist.sample.0001","timestamp":"2026-06-25T00:00:00Z","actor":"user","scope":"work","operation":"user text edit","summary":"Edited opening lyric draft","affected_files":["work.afwork","drafts/opening.md"],"before":"snapshots/000001.json","after":"snapshots/000002.json","prompt_package_id":"","ai_result_id":""})";
+}
+
 std::string_view CreateHistoryItemOperationName()
 {
     return "create history item";

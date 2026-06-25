@@ -31,6 +31,19 @@ enum class HistoryOperation {
     BranchCreated
 };
 
+struct HistoryEventId {
+    std::string_view value;
+};
+
+struct HistoryTimestamp {
+    std::string_view iso8601Utc;
+};
+
+struct RelatedAiIds {
+    std::string_view promptPackageId;
+    std::string_view aiResultId;
+};
+
 struct HistoryItemFields {
     std::string_view stableId;
     std::string_view timestamp;
@@ -53,6 +66,19 @@ struct HistoryStorageConvention {
     bool commitWithProjectFiles;
 };
 
+struct HistoryEvent {
+    HistoryEventId id;
+    HistoryTimestamp timestamp;
+    HistoryActor actor;
+    HistoryScope scope;
+    HistoryOperation operation;
+    std::string_view summary;
+    std::string_view affectedFilesJsonArray;
+    std::string_view beforeReference;
+    std::string_view afterReference;
+    RelatedAiIds relatedAiIds;
+};
+
 std::string_view PersistentEventLogName();
 std::string_view ToDisplayName(HistoryActor actor);
 std::string_view ToDisplayName(HistoryScope scope);
@@ -60,6 +86,8 @@ std::string_view ToDisplayName(HistoryOperation operation);
 
 HistoryStorageConvention DefaultStorageConvention();
 HistoryItemFields PlannedHistoryItemFields();
+HistoryEvent SampleUserTextEditEvent();
+std::string_view SampleUserTextEditJsonLine();
 
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();

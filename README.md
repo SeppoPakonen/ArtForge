@@ -59,6 +59,8 @@ Initial file roles are represented in `ArtForgeFiles`:
 
 Minimal scope file schemas are documented under `docs/file-formats/`, with
 sample JSON files under `examples/minimal/`.
+The persistent history JSON Lines format is documented in
+`docs/file-formats/afhistory.md`.
 
 One expected project folder shape is:
 
