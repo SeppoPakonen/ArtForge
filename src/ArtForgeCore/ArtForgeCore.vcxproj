@@ -22,9 +22,11 @@
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClInclude Include="include\ArtForge\Core\Bootstrap.hpp" />
+    <ClInclude Include="include\ArtForge\Core\ProcessModel.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Bootstrap.cpp" />
+    <ClCompile Include="src\ProcessModel.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

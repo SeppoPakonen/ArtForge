@@ -1,5 +1,7 @@
 #include "ArtForge/Core/Bootstrap.hpp"
 
+#include "ArtForge/Core/ProcessModel.hpp"
+
 #include <ostream>
 
 namespace ArtForge::Core {
@@ -20,6 +22,9 @@ void PrintBootstrapMessage(
         output << L"(none)";
     }
     output << L'\n';
+    output << L"Process model: " << ProcessModelStatus() << L'\n';
+    output << L"Future event boundary: " << SupportedProcessEventCount()
+           << L" event types stubbed" << L'\n';
     output << L"ArtForge bootstrap OK" << L'\n';
 }
 
