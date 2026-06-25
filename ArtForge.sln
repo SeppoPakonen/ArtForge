@@ -1,0 +1,93 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeCore", "src\ArtForgeCore\ArtForgeCore.vcxproj", "{8A1C7949-297C-4EB8-8468-1C612935D372}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeFiles", "src\ArtForgeFiles\ArtForgeFiles.vcxproj", "{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeHistory", "src\ArtForgeHistory\ArtForgeHistory.vcxproj", "{33F3CB85-5473-4F70-8140-AD98C4DC988E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgePrompting", "src\ArtForgePrompting\ArtForgePrompting.vcxproj", "{59B1783A-6071-45E8-B322-F178F326386B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeDeps", "src\ArtForgeDeps\ArtForgeDeps.vcxproj", "{E155ACCA-DA13-4312-B241-C7E1B6060D24}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeSolutionApp", "src\ArtForgeSolutionApp\ArtForgeSolutionApp.vcxproj", "{965962DE-F373-4A20-9B7A-5CC0917A8A98}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeArtistApp", "src\ArtForgeArtistApp\ArtForgeArtistApp.vcxproj", "{16ACFB3A-1D49-4417-9CBC-76C2D01BB852}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeSeriesApp", "src\ArtForgeSeriesApp\ArtForgeSeriesApp.vcxproj", "{B9760E23-ABF3-466E-A776-87D3B6DE66BE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeWorkApp", "src\ArtForgeWorkApp\ArtForgeWorkApp.vcxproj", "{9F4EDE46-47D6-4133-81E6-F6E7D81EF05B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8A1C7949-297C-4EB8-8468-1C612935D372}.Debug|x64.ActiveCfg = Debug|x64
+		{8A1C7949-297C-4EB8-8468-1C612935D372}.Debug|x64.Build.0 = Debug|x64
+		{8A1C7949-297C-4EB8-8468-1C612935D372}.Release|x64.ActiveCfg = Release|x64
+		{8A1C7949-297C-4EB8-8468-1C612935D372}.Release|x64.Build.0 = Release|x64
+		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Debug|x64.ActiveCfg = Debug|x64
+		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Debug|x64.Build.0 = Debug|x64
+		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Release|x64.ActiveCfg = Release|x64
+		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Release|x64.Build.0 = Release|x64
+		{33F3CB85-5473-4F70-8140-AD98C4DC988E}.Debug|x64.ActiveCfg = Debug|x64
+		{33F3CB85-5473-4F70-8140-AD98C4DC988E}.Debug|x64.Build.0 = Debug|x64
+		{33F3CB85-5473-4F70-8140-AD98C4DC988E}.Release|x64.ActiveCfg = Release|x64
+		{33F3CB85-5473-4F70-8140-AD98C4DC988E}.Release|x64.Build.0 = Release|x64
+		{59B1783A-6071-45E8-B322-F178F326386B}.Debug|x64.ActiveCfg = Debug|x64
+		{59B1783A-6071-45E8-B322-F178F326386B}.Debug|x64.Build.0 = Debug|x64
+		{59B1783A-6071-45E8-B322-F178F326386B}.Release|x64.ActiveCfg = Release|x64
+		{59B1783A-6071-45E8-B322-F178F326386B}.Release|x64.Build.0 = Release|x64
+		{E155ACCA-DA13-4312-B241-C7E1B6060D24}.Debug|x64.ActiveCfg = Debug|x64
+		{E155ACCA-DA13-4312-B241-C7E1B6060D24}.Debug|x64.Build.0 = Debug|x64
+		{E155ACCA-DA13-4312-B241-C7E1B6060D24}.Release|x64.ActiveCfg = Release|x64
+		{E155ACCA-DA13-4312-B241-C7E1B6060D24}.Release|x64.Build.0 = Release|x64
+		{965962DE-F373-4A20-9B7A-5CC0917A8A98}.Debug|x64.ActiveCfg = Debug|x64
+		{965962DE-F373-4A20-9B7A-5CC0917A8A98}.Debug|x64.Build.0 = Debug|x64
+		{965962DE-F373-4A20-9B7A-5CC0917A8A98}.Release|x64.ActiveCfg = Release|x64
+		{965962DE-F373-4A20-9B7A-5CC0917A8A98}.Release|x64.Build.0 = Release|x64
+		{16ACFB3A-1D49-4417-9CBC-76C2D01BB852}.Debug|x64.ActiveCfg = Debug|x64
+		{16ACFB3A-1D49-4417-9CBC-76C2D01BB852}.Debug|x64.Build.0 = Debug|x64
+		{16ACFB3A-1D49-4417-9CBC-76C2D01BB852}.Release|x64.ActiveCfg = Release|x64
+		{16ACFB3A-1D49-4417-9CBC-76C2D01BB852}.Release|x64.Build.0 = Release|x64
+		{B9760E23-ABF3-466E-A776-87D3B6DE66BE}.Debug|x64.ActiveCfg = Debug|x64
+		{B9760E23-ABF3-466E-A776-87D3B6DE66BE}.Debug|x64.Build.0 = Debug|x64
+		{B9760E23-ABF3-466E-A776-87D3B6DE66BE}.Release|x64.ActiveCfg = Release|x64
+		{B9760E23-ABF3-466E-A776-87D3B6DE66BE}.Release|x64.Build.0 = Release|x64
+		{9F4EDE46-47D6-4133-81E6-F6E7D81EF05B}.Debug|x64.ActiveCfg = Debug|x64
+		{9F4EDE46-47D6-4133-81E6-F6E7D81EF05B}.Debug|x64.Build.0 = Debug|x64
+		{9F4EDE46-47D6-4133-81E6-F6E7D81EF05B}.Release|x64.ActiveCfg = Release|x64
+		{9F4EDE46-47D6-4133-81E6-F6E7D81EF05B}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
