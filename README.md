@@ -103,3 +103,36 @@ Example operation types include user text edits, accepted AI repair options,
 rejected AI suggestions, imported source fragments, rule weight changes, prompt
 package generation, and AI JSON result imports. Branching is represented as
 metadata for now; no optimized history engine or branch UI is implemented yet.
+
+## Prompt package model
+
+ArtForge prompt packages are layered context bundles, not ad-hoc chat text. The
+initial contract is represented in `ArtForgePrompting` and keeps
+human-authored rules in Markdown while technical state and output contracts stay
+in JSON.
+
+Prompt context is ordered as:
+
+1. General creative rules: `general_rules.md`
+2. Domain rules: `domain_rules.md`
+3. Artist or subject rules: `artist_rules.md`
+4. Project or series rules: `project_rules.md`
+5. Work item state: `current_state.json`
+6. User markings and repair requests: `task_instruction.md`
+7. Output contract: `output_schema.json`
+
+`CreativeSubjectProfile` is planned as a domain-neutral abstraction. In lyrics
+it may describe a singer or vocal character; in visual art it may describe the
+main subject, figure, object, or viewpoint; in story or game work it may
+describe the narrator, protagonist, or player-facing role.
+
+AI output must be structured JSON before import. The placeholder output schema
+concepts are suggestions, critique items, replacement candidates, rule hits,
+rule violations, unresolved questions, confidence, and rationale. Free-form AI
+text is not imported directly into project state.
+
+Before any AI result changes state, ArtForge will parse JSON, validate the
+schema, verify referenced ids, reject unknown destructive operations, create a
+history item, and ask the user to accept or reject suggested changes. Prompt
+package generation maps to the history operation `prompt package generated`;
+validated AI result import maps to `AI JSON result imported`.
