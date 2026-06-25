@@ -161,3 +161,48 @@ analytics, repair options, and history timeline.
 Future UI labels should use stable localization keys. English remains the
 default UI language, with Finnish translations maintained separately under
 `locales/`.
+
+## Creative pressure model
+
+`ArtForgeDeps` defines a Portage-inspired pressure model for creative work. It
+is not a package manager clone and does not include a solver yet. The model uses
+dependency terminology to make incompatible creative goals visible before trying
+to resolve them.
+
+Core terms:
+
+- Package: selected creative requirement, work, rule pack, fragment, or project
+  function
+- Flag: user choice that changes package behavior or requirements
+- Slot: role that may need one or more compatible installed items
+- Version: specific revision of a package or creative requirement
+- Dependency: item required by another item
+- Blocker: item that prevents another item from being valid
+- Circular dependency: requirement cycle needing a changed decision
+- World set: selected creative goals and installed requirements
+
+Example flag usage:
+
+```text
+package: lyrics-low-friction-policy
+flags:
+  non_native_listener
+  radio_target
+  2010_language
+  male_performer
+```
+
+Creative examples include live solo performance requirements, low-cost music
+video requirements, and project or album story-arc requirements. These examples
+are modeled as creative pressures such as singable range, portable arrangement,
+few locations, daylight shooting, opening contrast, midpoint escalation, and
+closing resolution.
+
+Initial diagnostic categories are missing dependency, missing slot, blocker,
+flag conflict, circular dependency, version mismatch, and unresolved pressure.
+They are intended for later UI display and history recording, not automatic
+resolution in this phase.
+
+A future world update view should show packages needing update, missing slots,
+unresolved conflicts, fragments not imported, tasks required before a version
+can be accepted, and works blocked by project-level decisions.
