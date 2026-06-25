@@ -1,13 +1,12 @@
-#include "ArtForge/Core/Bootstrap.hpp"
+#include "ArtForge/UiWin32/Shell.hpp"
 
-#include <iostream>
+#include <windows.h>
 
-int wmain(int argc, wchar_t* argv[])
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
 {
-    ArtForge::Core::PrintBootstrapMessage(
-        std::wcout,
+    return ArtForge::UiWin32::RunScopeShell(
+        instance,
+        showCommand,
         ArtForge::Core::WorkShellDescriptor(),
-        argc,
-        argv);
-    return 0;
+        commandLine);
 }

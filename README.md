@@ -21,6 +21,8 @@ single-file product format is intentionally out of scope for this phase.
 The initial GUI direction is native Win32 API plus Windows Common Controls, with
 Direct2D reserved for later custom graph, canvas, pressure-map, and mind-map
 views. See [docs/architecture/002-gui-stack.md](docs/architecture/002-gui-stack.md).
+The shared `ArtForgeUiWin32` module now provides the minimal native shell
+foundation used by the scope applications.
 
 ## Process model
 
@@ -156,8 +158,8 @@ a full editor. `ArtForgeCore` owns shared shell descriptors for:
 - `ArtForgeSeriesApp`: project, album, or series scope
 - `ArtForgeWorkApp`: work item scope
 
-Each executable prints its application name, expected scope, optional path
-argument, process-model status, and `ArtForge bootstrap OK`.
+Each executable opens a minimal native Win32 window showing its application
+name, expected scope, optional path argument, and `ArtForge bootstrap OK`.
 
 The shell model also preserves future navigation concepts without implementing
 them as GUI views yet. Solution shells reserve artists, projects, missing files,

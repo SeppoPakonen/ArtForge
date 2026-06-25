@@ -1,6 +1,15 @@
 {
   "app.title": "ArtForge",
+  "app.solution.title": "ArtForge-ratkaisu",
+  "app.artist.title": "ArtForge-artisti",
+  "app.series.title": "ArtForge-sarja",
+  "app.work.title": "ArtForge-teos",
+  "label.application": "Sovellus",
+  "label.expected_scope": "Odotettu alue",
+  "label.path": "Polku",
   "menu.file": "Tiedosto",
+  "menu.file.exit": "Lopeta",
   "menu.edit": "Muokkaa",
+  "status.bootstrap_ok": "ArtForge-käynnistys OK",
   "status.ready": "Valmis"
 }
