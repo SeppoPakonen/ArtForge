@@ -18,6 +18,10 @@ The first implementation favors human-readable, git-friendly project data and
 module boundaries. Future Windows Store packaging or a simplified bundled
 single-file product format is intentionally out of scope for this phase.
 
+The initial GUI direction is native Win32 API plus Windows Common Controls, with
+Direct2D reserved for later custom graph, canvas, pressure-map, and mind-map
+views. See [docs/architecture/002-gui-stack.md](docs/architecture/002-gui-stack.md).
+
 ## Process model
 
 ArtForge keeps the main creative scopes independently launchable:
