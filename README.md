@@ -75,3 +75,31 @@ MyArtist/
 Finnish UI translation remains a separate repository-level concern under
 `locales/ui.fi.json`. A later bundled single-file consumer format may be added as
 a packaging layer, but it is not the primary project format in this phase.
+
+## History model
+
+ArtForge history is separate from Git. Git remains the repository checkpoint and
+collaboration tool; ArtForge history records higher-frequency creative
+operations that can later support browse, undo, redo, compare, and branch
+workflows.
+
+The initial storage convention is append-only JSON Lines plus optional JSON
+snapshots:
+
+```text
+history.afhistory.jsonl
+snapshots/
+  000001.json
+  000002.json
+```
+
+Each planned history item includes a stable id, timestamp, actor, scope,
+affected files, operation type, summary, optional before and after references,
+optional prompt package id, and optional AI result id. The first operation
+surface is intentionally small: create a history item, list history items,
+restore a snapshot placeholder, and branch metadata placeholder.
+
+Example operation types include user text edits, accepted AI repair options,
+rejected AI suggestions, imported source fragments, rule weight changes, prompt
+package generation, and AI JSON result imports. Branching is represented as
+metadata for now; no optimized history engine or branch UI is implemented yet.
