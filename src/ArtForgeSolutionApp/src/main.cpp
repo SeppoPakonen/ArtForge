@@ -6,8 +6,7 @@ int wmain(int argc, wchar_t* argv[])
 {
     ArtForge::Core::PrintBootstrapMessage(
         std::wcout,
-        L"ArtForgeSolutionApp",
-        L"solution",
+        ArtForge::Core::SolutionShellDescriptor(),
         argc,
         argv);
     return 0;

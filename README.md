@@ -136,3 +136,28 @@ schema, verify referenced ids, reject unknown destructive operations, create a
 history item, and ask the user to accept or reject suggested changes. Prompt
 package generation maps to the history operation `prompt package generated`;
 validated AI result import maps to `AI JSON result imported`.
+
+## Scope shell model
+
+The first UI phase is a set of independently launchable placeholder shells, not
+a full editor. `ArtForgeCore` owns shared shell descriptors for:
+
+- `ArtForgeSolutionApp`: solution scope
+- `ArtForgeArtistApp`: artist scope
+- `ArtForgeSeriesApp`: project, album, or series scope
+- `ArtForgeWorkApp`: work item scope
+
+Each executable prints its application name, expected scope, optional path
+argument, process-model status, and `ArtForge bootstrap OK`.
+
+The shell model also preserves future navigation concepts without implementing
+them as GUI views yet. Solution shells reserve artists, projects, missing files,
+world update view, conflicts, and tasks. Artist shells reserve identity map,
+recurring themes, constraints, audience assumptions, and projects. Series shells
+reserve ordered works, arc pressure, missing slots, requirements, and conflicts.
+Work shells reserve technical base, sources, editor area, pressure map, rule
+analytics, repair options, and history timeline.
+
+Future UI labels should use stable localization keys. English remains the
+default UI language, with Finnish translations maintained separately under
+`locales/`.

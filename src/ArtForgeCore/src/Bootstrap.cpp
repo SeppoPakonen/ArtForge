@@ -28,4 +28,18 @@ void PrintBootstrapMessage(
     output << L"ArtForge bootstrap OK" << L'\n';
 }
 
+void PrintBootstrapMessage(
+    std::wostream& output,
+    ScopeShellDescriptor shell,
+    int argumentCount,
+    wchar_t* arguments[])
+{
+    PrintBootstrapMessage(
+        output,
+        shell.applicationName,
+        shell.expectedScope,
+        argumentCount,
+        arguments);
+}
+
 }
