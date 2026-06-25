@@ -1,0 +1,22 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.opening",
+  "scope": "work",
+  "workKind": "song",
+  "displayName": "Opening Work",
+  "series": {
+    "id": "series.sample",
+    "path": "../../sample.afseries"
+  },
+  "sources": [
+    {
+      "id": "source.note",
+      "path": "sources/note.md"
+    }
+  ],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {}
+}

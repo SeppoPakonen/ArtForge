@@ -1,0 +1,19 @@
+{
+  "format": "artforge.series",
+  "schemaVersion": 1,
+  "id": "series.sample",
+  "scope": "series",
+  "displayName": "Sample Series",
+  "artist": {
+    "id": "artist.sample",
+    "path": "../../artists/sample.afartist"
+  },
+  "works": [
+    {
+      "id": "work.opening",
+      "path": "works/01-opening/sample.afwork",
+      "order": 1
+    }
+  ],
+  "metadata": {}
+}

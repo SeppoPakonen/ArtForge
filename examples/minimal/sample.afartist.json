@@ -1,0 +1,17 @@
+{
+  "format": "artforge.artist",
+  "schemaVersion": 1,
+  "id": "artist.sample",
+  "scope": "artist",
+  "displayName": "Sample Artist",
+  "ruleFiles": [
+    "rules/artist.md"
+  ],
+  "projects": [
+    {
+      "id": "series.sample",
+      "path": "../projects/sample-series/sample.afseries"
+    }
+  ],
+  "metadata": {}
+}

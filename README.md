@@ -57,6 +57,9 @@ Initial file roles are represented in `ArtForgeFiles`:
 - `*.afrules` for rule package manifests
 - `*.afprompt` for AI prompt package manifests
 
+Minimal scope file schemas are documented under `docs/file-formats/`, with
+sample JSON files under `examples/minimal/`.
+
 One expected project folder shape is:
 
 ```text
