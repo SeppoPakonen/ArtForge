@@ -4,6 +4,7 @@
 #include "ArtForge/UiWin32/PaneLayout.hpp"
 #include "ArtForge/UiWin32/PropertyPanel.hpp"
 
+#include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
@@ -34,6 +35,7 @@ struct ScopeShellState {
     std::wstring loadDetailText;
     HWND navigationTree{};
     HWND summaryControl{};
+    ListViewReport domainList;
     TabControl detailTabs;
     PropertyPanel propertyPanel;
     HWND statusBar{};
@@ -386,6 +388,124 @@ std::wstring WorkDomainWorkspaceText(std::string_view workDomain)
     return L"Unsupported work domain\r\n\r\nDomain value is not supported by the placeholder workspace yet.";
 }
 
+void PopulateUnsupportedDomainList(ScopeShellState& state, std::wstring_view reason)
+{
+    state.domainList.AddColumn(0, L"Status", 140);
+    state.domainList.AddColumn(1, L"Detail", 520);
+    state.domainList.AddRow({L"Work domain", reason});
+}
+
+void PopulateLyricsDomainList(ScopeShellState& state)
+{
+    const auto model = ArtForge::Files::LoadLyricsWorkViewModel(std::filesystem::path{state.openedPath});
+    if (!model.status.ok) {
+        PopulateUnsupportedDomainList(state, L"Lyrics view model failed to load");
+        return;
+    }
+
+    state.domainList.AddColumn(0, L"Time", 140);
+    state.domainList.AddColumn(1, L"Section", 140);
+    state.domainList.AddColumn(2, L"Text", 360);
+    state.domainList.AddColumn(3, L"Evaluation", 220);
+
+    for (const auto& line : model.lyricLines) {
+        state.domainList.AddRow({
+            Utf8ToWide(line.timeRange),
+            Utf8ToWide(line.sectionId),
+            Utf8ToWide(line.text),
+            Utf8ToWide(line.evaluationSummary),
+        });
+    }
+}
+
+void PopulateVisualArtDomainList(ScopeShellState& state)
+{
+    const auto model = ArtForge::Files::LoadVisualArtWorkViewModel(std::filesystem::path{state.openedPath});
+    if (!model.status.ok) {
+        PopulateUnsupportedDomainList(state, L"Visual art view model failed to load");
+        return;
+    }
+
+    state.domainList.AddColumn(0, L"Layer", 160);
+    state.domainList.AddColumn(1, L"Type", 100);
+    state.domainList.AddColumn(2, L"Label", 220);
+    state.domainList.AddColumn(3, L"Intent", 420);
+
+    for (const auto& layer : model.viewerLayers) {
+        state.domainList.AddRow({
+            Utf8ToWide(layer.id),
+            Utf8ToWide(layer.layerType),
+            Utf8ToWide(layer.label),
+            Utf8ToWide(layer.intent),
+        });
+    }
+    for (const auto& layer : model.paintLayers) {
+        state.domainList.AddRow({
+            Utf8ToWide(layer.id),
+            Utf8ToWide(layer.layerType),
+            Utf8ToWide(layer.label),
+            Utf8ToWide(layer.intent),
+        });
+    }
+}
+
+void PopulateScriptStoryboardDomainList(ScopeShellState& state)
+{
+    const auto model = ArtForge::Files::LoadScriptStoryboardWorkViewModel(std::filesystem::path{state.openedPath});
+    if (!model.status.ok) {
+        PopulateUnsupportedDomainList(state, L"Script/storyboard view model failed to load");
+        return;
+    }
+
+    state.domainList.AddColumn(0, L"Time", 140);
+    state.domainList.AddColumn(1, L"Scene / block", 180);
+    state.domainList.AddColumn(2, L"Speaker / type", 160);
+    state.domainList.AddColumn(3, L"Text", 420);
+
+    for (const auto& scene : model.scenes) {
+        state.domainList.AddRow({
+            Utf8ToWide(scene.timeRange),
+            Utf8ToWide(scene.id),
+            L"scene",
+            Utf8ToWide(scene.title),
+        });
+    }
+    for (const auto& block : model.blocks) {
+        const auto speakerOrType = block.speaker.empty() ? block.kind : block.speaker;
+        state.domainList.AddRow({
+            Utf8ToWide(block.timeRange),
+            Utf8ToWide(block.id),
+            Utf8ToWide(speakerOrType),
+            Utf8ToWide(block.text),
+        });
+    }
+}
+
+void PopulateWorkDomainList(ScopeShellState& state)
+{
+    if (state.openedPath.empty()) {
+        PopulateUnsupportedDomainList(state, L"No work file path provided");
+        return;
+    }
+
+    const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
+    if (!result.status.ok) {
+        PopulateUnsupportedDomainList(state, L"Work file load failed");
+        return;
+    }
+
+    if (result.file.workDomain == "lyrics") {
+        PopulateLyricsDomainList(state);
+    } else if (result.file.workDomain == "visualArt") {
+        PopulateVisualArtDomainList(state);
+    } else if (result.file.workDomain == "scriptStoryboard") {
+        PopulateScriptStoryboardDomainList(state);
+    } else {
+        const auto reason = result.file.workDomain.empty() ? std::wstring{L"Missing workDomain"} : L"Unsupported workDomain: " + Utf8ToWide(result.file.workDomain);
+        PopulateUnsupportedDomainList(state, reason);
+    }
+}
+
 void PopulatePropertyPanel(ScopeShellState& state)
 {
     const auto pathText = state.openedPath.empty() ? std::wstring{L"(none)"} : state.openedPath;
@@ -468,20 +588,25 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             nullptr);
         PopulateNavigationTree(state->navigationTree, *state);
 
-        const auto summary = SummaryText(*state);
-        state->summaryControl = CreateWindowExW(
-            WS_EX_CLIENTEDGE,
-            L"STATIC",
-            summary.c_str(),
-            WS_CHILD | WS_VISIBLE | SS_LEFT,
-            0,
-            0,
-            0,
-            0,
-            window,
-            reinterpret_cast<HMENU>(static_cast<INT_PTR>(SummaryControlId)),
-            create->hInstance,
-            nullptr);
+        if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
+            state->summaryControl = state->domainList.Create(window, SummaryControlId, create->hInstance);
+            PopulateWorkDomainList(*state);
+        } else {
+            const auto summary = SummaryText(*state);
+            state->summaryControl = CreateWindowExW(
+                WS_EX_CLIENTEDGE,
+                L"STATIC",
+                summary.c_str(),
+                WS_CHILD | WS_VISIBLE | SS_LEFT,
+                0,
+                0,
+                0,
+                0,
+                window,
+                reinterpret_cast<HMENU>(static_cast<INT_PTR>(SummaryControlId)),
+                create->hInstance,
+                nullptr);
+        }
 
         state->detailTabs.Create(window, DetailTabId, create->hInstance);
         state->detailTabs.AddTab(0, L"Details");
