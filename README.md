@@ -161,6 +161,9 @@ validated AI result import maps to `AI JSON result imported`.
 The concrete prompt package schema is documented in
 [docs/prompting/prompt-package-schema.md](docs/prompting/prompt-package-schema.md),
 with a small layered example under `examples/prompt-package/work-repair/`.
+`ArtForgePrompting` can now assemble a deterministic prompt package debug dump
+from loaded work context and layered Markdown/JSON files. The example inputs
+live under `examples/prompt-build/`; no AI provider is called.
 
 ## Scope shell model
 

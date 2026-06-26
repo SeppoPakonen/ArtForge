@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ArtForge Prompt Build Smoke Output",
+  "type": "object",
+  "required": [
+    "suggestions",
+    "critiqueItems",
+    "replacementCandidates",
+    "ruleHits",
+    "ruleViolations",
+    "unresolvedQuestions",
+    "confidence",
+    "rationale"
+  ],
+  "properties": {
+    "suggestions": { "type": "array" },
+    "critiqueItems": { "type": "array" },
+    "replacementCandidates": { "type": "array" },
+    "ruleHits": { "type": "array" },
+    "ruleViolations": { "type": "array" },
+    "unresolvedQuestions": { "type": "array" },
+    "confidence": { "type": "number" },
+    "rationale": { "type": "string" }
+  },
+  "additionalProperties": false
+}

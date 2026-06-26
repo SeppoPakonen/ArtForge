@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ArtForgeCore\ArtForgeCore.vcxproj"><Project>{8A1C7949-297C-4EB8-8468-1C612935D372}</Project></ProjectReference>
     <ProjectReference Include="..\ArtForgeFiles\ArtForgeFiles.vcxproj"><Project>{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}</Project></ProjectReference>
+    <ProjectReference Include="..\ArtForgePrompting\ArtForgePrompting.vcxproj"><Project>{59B1783A-6071-45E8-B322-F178F326386B}</Project></ProjectReference>
     <ProjectReference Include="..\ArtForgeUiWin32\ArtForgeUiWin32.vcxproj"><Project>{4C8DDA5E-49AA-45E3-A05A-78048F237035}</Project></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

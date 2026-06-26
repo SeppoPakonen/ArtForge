@@ -1,7 +1,12 @@
 #pragma once
 
+#include "ArtForge/Files/ProjectGraph.hpp"
+
 #include <array>
+#include <filesystem>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace ArtForge::Prompting {
 
@@ -55,6 +60,33 @@ struct CreativeSubjectProfileFields {
     std::string_view viewpoint;
 };
 
+struct PromptLayerEntry {
+    PromptLayer layer;
+    std::string role;
+    std::filesystem::path sourcePath;
+    PromptInputFormat format;
+    bool loaded{};
+    std::string content;
+    std::string loadError;
+};
+
+struct PromptPackageBuildRequest {
+    std::filesystem::path solutionPath;
+    std::string workId;
+    std::vector<std::filesystem::path> generalRuleFiles;
+    std::vector<std::filesystem::path> domainRuleFiles;
+    std::vector<std::filesystem::path> projectRuleFiles;
+    std::filesystem::path taskInstructionPath;
+    std::filesystem::path outputSchemaPath;
+    std::string taskInstruction;
+};
+
+struct PromptPackageBuildResult {
+    bool ok{};
+    std::vector<PromptLayerEntry> layers;
+    std::vector<std::string> issues;
+};
+
 std::string_view PromptPackageContractName();
 std::string_view ToDisplayName(PromptLayer layer);
 std::string_view ToDisplayName(PromptInputFormat format);
@@ -65,6 +97,9 @@ CreativeSubjectProfileFields PlannedCreativeSubjectProfileFields();
 std::string_view PromptPackageHistoryGenerationOperation();
 std::string_view AiResultHistoryImportOperation();
 std::string_view AiResultReviewRequirement();
+
+PromptPackageBuildResult BuildPromptPackageFromWorkContext(const PromptPackageBuildRequest& request);
+std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& result);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},
