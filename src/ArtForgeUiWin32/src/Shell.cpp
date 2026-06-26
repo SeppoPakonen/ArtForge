@@ -1,8 +1,11 @@
 #include "ArtForge/UiWin32/Shell.hpp"
 
+#include "ArtForge/Files/ScopeFiles.hpp"
+
 #include <commctrl.h>
 #include <shellapi.h>
 
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -18,9 +21,39 @@ constexpr int SummaryControlId = 2002;
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
     std::wstring openedPath;
+    std::wstring loadStatusText;
+    std::wstring loadDetailText;
     HWND summaryControl{};
     HWND statusBar{};
 };
+
+std::wstring Utf8ToWide(std::string_view value)
+{
+    if (value.empty()) {
+        return {};
+    }
+
+    const auto requiredLength = MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        nullptr,
+        0);
+    if (requiredLength <= 0) {
+        return std::wstring{value.begin(), value.end()};
+    }
+
+    std::wstring converted(static_cast<std::size_t>(requiredLength), L'\0');
+    MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        converted.data(),
+        requiredLength);
+    return converted;
+}
 
 std::wstring FirstCommandLinePath(wchar_t* commandLine)
 {
@@ -51,15 +84,73 @@ std::wstring WindowTitle(const ArtForge::Core::ScopeShellDescriptor& descriptor)
     return title;
 }
 
+std::wstring FirstIssueText(const ArtForge::Files::ScopeFileLoadStatus& status)
+{
+    if (status.issues.empty()) {
+        return {};
+    }
+
+    return Utf8ToWide(status.issues.front().message);
+}
+
+ArtForge::Files::ScopeFileLoadStatus LoadScopeFileStatus(
+    ArtForge::Core::ScopeKind scope,
+    const std::filesystem::path& path)
+{
+    switch (scope) {
+    case ArtForge::Core::ScopeKind::Solution:
+        return ArtForge::Files::LoadSolutionScopeFile(path).status;
+    case ArtForge::Core::ScopeKind::Artist:
+        return ArtForge::Files::LoadArtistScopeFile(path).status;
+    case ArtForge::Core::ScopeKind::Series:
+        return ArtForge::Files::LoadSeriesScopeFile(path).status;
+    case ArtForge::Core::ScopeKind::WorkItem:
+        return ArtForge::Files::LoadWorkScopeFile(path).status;
+    case ArtForge::Core::ScopeKind::Fragment:
+        return {false, {{"fragment scope files are not loadable in this shell yet"}}};
+    }
+
+    return {false, {{"unknown scope type"}}};
+}
+
+void UpdateFileStatus(ScopeShellState& state)
+{
+    if (state.openedPath.empty()) {
+        state.loadStatusText = L"No file path provided";
+        state.loadDetailText = L"Launch with a scope file path to load status.";
+        return;
+    }
+
+    const auto loadStatus = LoadScopeFileStatus(
+        state.descriptor.scope,
+        std::filesystem::path{state.openedPath});
+
+    if (loadStatus.ok) {
+        state.loadStatusText = L"File load OK";
+        state.loadDetailText = L"Scope file parsed successfully.";
+        return;
+    }
+
+    state.loadStatusText = L"File load failed";
+    const auto issueText = FirstIssueText(loadStatus);
+    state.loadDetailText = issueText.empty() ? L"Unknown load error." : issueText;
+}
+
 std::wstring SummaryText(const ScopeShellState& state)
 {
     std::wstring summary;
     summary += L"Application: ";
     summary += state.descriptor.applicationName;
+    summary += L"\r\nScope type: ";
+    summary += ArtForge::Core::ToDisplayName(state.descriptor.scope);
     summary += L"\r\nExpected scope: ";
     summary += state.descriptor.expectedScope;
     summary += L"\r\nPath: ";
     summary += state.openedPath.empty() ? L"(none)" : state.openedPath;
+    summary += L"\r\nLoad status: ";
+    summary += state.loadStatusText;
+    summary += L"\r\nLoad detail: ";
+    summary += state.loadDetailText;
     summary += L"\r\nArtForge bootstrap OK";
     return summary;
 }
@@ -128,7 +219,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         state->statusBar = CreateWindowExW(
             0,
             STATUSCLASSNAMEW,
-            L"ArtForge bootstrap OK",
+            state->loadStatusText.c_str(),
             WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
             0,
             0,
@@ -229,6 +320,7 @@ int RunScopeShell(
         descriptor,
         FirstCommandLinePath(commandLine),
     };
+    UpdateFileStatus(state);
 
     if (CreateShellWindow(instance, showCommand, state) == nullptr) {
         return 1;

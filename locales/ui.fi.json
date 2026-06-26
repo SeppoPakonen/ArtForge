@@ -6,10 +6,16 @@
   "app.work.title": "ArtForge-teos",
   "label.application": "Sovellus",
   "label.expected_scope": "Odotettu alue",
+  "label.load_detail": "Latauksen tiedot",
+  "label.load_status": "Latauksen tila",
   "label.path": "Polku",
+  "label.scope_type": "Alueen tyyppi",
   "menu.file": "Tiedosto",
   "menu.file.exit": "Lopeta",
   "menu.edit": "Muokkaa",
   "status.bootstrap_ok": "ArtForge-käynnistys OK",
+  "status.file_load_failed": "Tiedoston lataus ep\u00e4onnistui",
+  "status.file_load_ok": "Tiedoston lataus onnistui",
+  "status.no_file_path": "Tiedostopolkua ei annettu",
   "status.ready": "Valmis"
 }
