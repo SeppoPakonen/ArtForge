@@ -1,0 +1,21 @@
+{
+  "format": "artforge.prompt.currentState",
+  "schemaVersion": 1,
+  "scope": {
+    "type": "work",
+    "id": "work.script.sample",
+    "displayName": "Sample Script Storyboard Work",
+    "path": "../../work-domains/script-storyboard.afwork.json"
+  },
+  "workDomain": "scriptStoryboard",
+  "focus": {
+    "sceneId": "scene.opening",
+    "blockIds": [
+      "block.opening.dialogue"
+    ],
+    "shotIds": [
+      "shot.opening.001"
+    ]
+  },
+  "knownReferences": []
+}

@@ -1,0 +1,25 @@
+{
+  "format": "artforge.promptPackage",
+  "schemaVersion": 1,
+  "id": "prompt.domain.lyrics.sample",
+  "createdUtc": "2026-06-26T00:00:00Z",
+  "scope": {
+    "type": "work",
+    "id": "work.lyrics.sample",
+    "path": "../../work-domains/lyrics.afwork.json"
+  },
+  "layers": [
+    { "kind": "general creative rules", "format": "Markdown", "path": "general_rules.md" },
+    { "kind": "domain rules", "format": "Markdown", "path": "domain_rules.md" },
+    { "kind": "artist or subject rules", "format": "Markdown", "path": "artist_rules.md" },
+    { "kind": "project or series rules", "format": "Markdown", "path": "project_rules.md" },
+    { "kind": "work item state", "format": "JSON", "path": "current_state.json" },
+    { "kind": "user markings and repair requests", "format": "Markdown", "path": "task_instruction.md" },
+    { "kind": "output contract", "format": "JSON", "path": "output_schema.json" }
+  ],
+  "output": {
+    "format": "JSON",
+    "schemaPath": "output_schema.json",
+    "requiresValidationBeforeImport": true
+  }
+}

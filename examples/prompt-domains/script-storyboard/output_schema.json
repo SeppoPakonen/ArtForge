@@ -1,0 +1,15 @@
+{
+  "format": "artforge.prompt.outputContract",
+  "schemaVersion": 1,
+  "requiresValidationBeforeImport": true,
+  "requiredSections": [
+    "suggestions",
+    "critiqueItems",
+    "replacementCandidates",
+    "ruleHits",
+    "ruleViolations",
+    "unresolvedQuestions",
+    "confidence",
+    "rationale"
+  ]
+}

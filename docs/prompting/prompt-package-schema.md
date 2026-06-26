@@ -93,3 +93,10 @@ and ask the user to accept or reject the result.
 
 This schema does not implement an AI provider, prompt execution, automatic state
 import, undo/redo restoration, or a prompt browser UI.
+
+## Domain Examples
+
+Layered prompt package examples for lyrics/music, visual art layers, and
+script/storyboard work live under `examples/prompt-domains/`. Each example uses
+the same seven-layer package structure and keeps AI output constrained to JSON
+that must be validated before import.

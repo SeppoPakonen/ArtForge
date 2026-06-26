@@ -1,0 +1,23 @@
+{
+  "format": "artforge.prompt.currentState",
+  "schemaVersion": 1,
+  "scope": {
+    "type": "work",
+    "id": "work.lyrics.sample",
+    "displayName": "Sample Lyrics Work",
+    "path": "../../work-domains/lyrics.afwork.json"
+  },
+  "workDomain": "lyrics",
+  "focus": {
+    "sectionId": "section.chorus1",
+    "lineIds": [
+      "line.c1.001"
+    ]
+  },
+  "knownReferences": [
+    {
+      "id": "performer.lead",
+      "path": "performers/lead-singer.json"
+    }
+  ]
+}

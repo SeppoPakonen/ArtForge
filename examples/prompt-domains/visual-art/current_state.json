@@ -1,0 +1,25 @@
+{
+  "format": "artforge.prompt.currentState",
+  "schemaVersion": 1,
+  "scope": {
+    "type": "work",
+    "id": "work.visual.sample",
+    "displayName": "Sample Visual Art Work",
+    "path": "../../work-domains/visual-art.afwork.json"
+  },
+  "workDomain": "visualArt",
+  "focus": {
+    "viewerLayerIds": [
+      "viewer.foreground"
+    ],
+    "paintLayerIds": [
+      "paint.light"
+    ]
+  },
+  "knownReferences": [
+    {
+      "id": "reference.pose",
+      "path": "references/pose-placeholder.txt"
+    }
+  ]
+}
