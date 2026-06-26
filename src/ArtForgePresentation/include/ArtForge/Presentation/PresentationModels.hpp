@@ -62,6 +62,15 @@ struct SelectionModel {
     std::string displayLabel;
 };
 
+struct SelectionChangedRequest {
+    std::string sourcePath;
+    int rowIndex{-1};
+};
+
+struct ClearSelectionRequest {
+    std::string sourcePath;
+};
+
 std::string DescribeTableModel(const TableModel& model);
 std::string DescribePropertyListModel(const PropertyListModel& model);
 

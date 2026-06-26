@@ -38,6 +38,7 @@ struct ScopeShellState {
     ListViewReport domainList;
     TabControl detailTabs;
     PropertyPanel propertyPanel;
+    ArtForge::Presentation::SelectionModel workSelection;
     HWND statusBar{};
 };
 
@@ -420,12 +421,26 @@ void PopulatePropertyPanel(ScopeShellState& state)
     state.propertyPanel.AddProperty(L"Load detail", state.loadDetailText);
 
     if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
-        const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(std::filesystem::path{state.openedPath});
+        const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(
+            std::filesystem::path{state.openedPath},
+            state.workSelection);
         state.propertyPanel.AddGroup(L"Work");
         for (const auto& property : presentation.properties.properties) {
             state.propertyPanel.AddProperty(Utf8ToWide(property.name), Utf8ToWide(property.value));
         }
     }
+}
+
+void HandleWorkDomainSelection(ScopeShellState& state, int rowIndex)
+{
+    if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem || state.openedPath.empty()) {
+        return;
+    }
+
+    state.workSelection = rowIndex >= 0
+        ? ArtForge::Presentation::SelectWorkAppTableRow(std::filesystem::path{state.openedPath}, rowIndex)
+        : ArtForge::Presentation::ClearWorkAppSelection(std::filesystem::path{state.openedPath});
+    PopulatePropertyPanel(state);
 }
 
 HMENU CreateShellMenu()
@@ -542,6 +557,18 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             return 0;
         }
         break;
+    case WM_NOTIFY: {
+        const auto notification = reinterpret_cast<NMHDR*>(lParam);
+        if (notification != nullptr && notification->idFrom == SummaryControlId && notification->code == LVN_ITEMCHANGED) {
+            const auto listChange = reinterpret_cast<NMLISTVIEW*>(lParam);
+            if ((listChange->uChanged & LVIF_STATE) != 0) {
+                const bool selected = (listChange->uNewState & LVIS_SELECTED) != 0;
+                HandleWorkDomainSelection(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)), selected ? listChange->iItem : -1);
+            }
+            return 0;
+        }
+        break;
+    }
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;

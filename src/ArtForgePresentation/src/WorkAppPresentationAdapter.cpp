@@ -70,6 +70,20 @@ PropertyListModel BuildBaseProperties(const ArtForge::Files::WorkScopeFileLoadRe
     return properties;
 }
 
+void AddSelectionProperties(PropertyListModel& properties, const SelectionModel& selection)
+{
+    if (!selection.hasSelection) {
+        AddProperty(properties, "Selection", "(none)");
+        return;
+    }
+
+    AddProperty(properties, "Selected domain", selection.domain);
+    AddProperty(properties, "Selected item type", selection.itemType);
+    AddProperty(properties, "Selected item id", selection.itemId);
+    AddProperty(properties, "Selected index", std::to_string(selection.itemIndex));
+    AddProperty(properties, "Selected item", selection.displayLabel);
+}
+
 TableModel BuildUnsupportedTable(std::string reason)
 {
     TableModel table;
@@ -113,6 +127,13 @@ void AddScriptStoryboardRows(TableModel& table, const ArtForge::Files::ScriptSto
 
 WorkAppPresentationModel BuildWorkAppPresentationModel(const std::filesystem::path& workPath)
 {
+    return BuildWorkAppPresentationModel(workPath, ClearWorkAppSelection(workPath));
+}
+
+WorkAppPresentationModel BuildWorkAppPresentationModel(
+    const std::filesystem::path& workPath,
+    const SelectionModel& selection)
+{
     WorkAppPresentationModel model;
     const auto result = ArtForge::Files::LoadWorkScopeFile(workPath);
     model.status = {result.status.ok, result.status.ok ? "File load OK" : "File load failed", {}};
@@ -121,6 +142,8 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(const std::filesystem::pa
     }
     model.navigation = BuildNavigation(result, workPath);
     model.properties = BuildBaseProperties(result, workPath);
+    model.selection = selection;
+    AddSelectionProperties(model.properties, model.selection);
 
     if (!result.status.ok) {
         model.domainTable = BuildUnsupportedTable(model.status.diagnostics.empty() ? "Work file load failed" : model.status.diagnostics.front());
@@ -153,6 +176,80 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(const std::filesystem::pa
     }
 
     return model;
+}
+
+SelectionModel ClearWorkAppSelection(const std::filesystem::path& workPath)
+{
+    SelectionModel selection;
+    selection.sourcePath = workPath.generic_string();
+    return selection;
+}
+
+SelectionModel SelectWorkAppTableRow(const std::filesystem::path& workPath, int rowIndex)
+{
+    SelectionModel selection = ClearWorkAppSelection(workPath);
+    if (rowIndex < 0) {
+        return selection;
+    }
+
+    const auto result = ArtForge::Files::LoadWorkScopeFile(workPath);
+    if (!result.status.ok) {
+        return selection;
+    }
+
+    selection.hasSelection = true;
+    selection.domain = result.file.workDomain;
+    selection.itemIndex = rowIndex;
+
+    const auto index = static_cast<std::size_t>(rowIndex);
+    if (result.file.workDomain == "lyrics") {
+        const auto lyrics = ArtForge::Files::LoadLyricsWorkViewModel(workPath);
+        if (index < lyrics.lyricLines.size()) {
+            const auto& line = lyrics.lyricLines[index];
+            selection.itemType = "lyricLine";
+            selection.itemId = line.id;
+            selection.displayLabel = line.text;
+            return selection;
+        }
+    } else if (result.file.workDomain == "visualArt") {
+        const auto visual = ArtForge::Files::LoadVisualArtWorkViewModel(workPath);
+        if (index < visual.viewerLayers.size()) {
+            const auto& layer = visual.viewerLayers[index];
+            selection.itemType = "visualLayer";
+            selection.itemId = layer.id;
+            selection.displayLabel = layer.label;
+            return selection;
+        }
+        const auto paintIndex = index - visual.viewerLayers.size();
+        if (paintIndex < visual.paintLayers.size()) {
+            const auto& layer = visual.paintLayers[paintIndex];
+            selection.itemType = "visualLayer";
+            selection.itemId = layer.id;
+            selection.displayLabel = layer.label;
+            return selection;
+        }
+    } else if (result.file.workDomain == "scriptStoryboard") {
+        const auto script = ArtForge::Files::LoadScriptStoryboardWorkViewModel(workPath);
+        if (index < script.scenes.size()) {
+            const auto& scene = script.scenes[index];
+            selection.itemType = "scriptScene";
+            selection.itemId = scene.id;
+            selection.displayLabel = scene.title;
+            return selection;
+        }
+        const auto blockIndex = index - script.scenes.size();
+        if (blockIndex < script.blocks.size()) {
+            const auto& block = script.blocks[blockIndex];
+            selection.itemType = "scriptBlock";
+            selection.itemId = block.id;
+            selection.displayLabel = block.text;
+            return selection;
+        }
+    }
+
+    selection.hasSelection = false;
+    selection.itemIndex = -1;
+    return selection;
 }
 
 }

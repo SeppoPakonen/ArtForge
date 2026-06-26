@@ -11,8 +11,14 @@ struct WorkAppPresentationModel {
     NavigationTreeModel navigation;
     TableModel domainTable;
     PropertyListModel properties;
+    SelectionModel selection;
 };
 
 WorkAppPresentationModel BuildWorkAppPresentationModel(const std::filesystem::path& workPath);
+WorkAppPresentationModel BuildWorkAppPresentationModel(
+    const std::filesystem::path& workPath,
+    const SelectionModel& selection);
+SelectionModel SelectWorkAppTableRow(const std::filesystem::path& workPath, int rowIndex);
+SelectionModel ClearWorkAppSelection(const std::filesystem::path& workPath);
 
 }
