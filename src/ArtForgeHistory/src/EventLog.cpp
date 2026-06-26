@@ -193,6 +193,35 @@ std::vector<std::string> ReadStringArrayField(std::string_view json, std::string
     return values;
 }
 
+std::optional<HistorySnapshotMetadata> ReadSnapshotMetadataField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "snapshot", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return HistorySnapshotMetadata{
+        ReadStringField(*objectJson, "id").value_or(""),
+        ReadStringField(*objectJson, "summary").value_or(""),
+        ReadStringField(*objectJson, "timestamp").value_or(""),
+        ReadStringField(*objectJson, "related_event_id").value_or(""),
+    };
+}
+
+std::optional<HistoryBranchPlaceholder> ReadBranchPlaceholderField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "branch", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return HistoryBranchPlaceholder{
+        ReadStringField(*objectJson, "id").value_or(""),
+        ReadStringField(*objectJson, "parent_branch_id").value_or(""),
+        ReadStringField(*objectJson, "creation_reason").value_or(""),
+    };
+}
+
 std::optional<HistoryActor> ParseActor(std::string_view value)
 {
     if (value == "user") {
@@ -266,6 +295,36 @@ HistoryLogStatus ValidateStoredEvent(const StoredHistoryEvent& event)
     if (event.summary.empty()) {
         AddIssue(status, 0, "missing required field: summary");
     }
+    if (event.operation == HistoryOperation::SnapshotCreated) {
+        if (!event.snapshot) {
+            AddIssue(status, 0, "snapshot metadata is required for snapshot created events");
+        } else {
+            if (event.snapshot->snapshotId.empty()) {
+                AddIssue(status, 0, "missing required field: snapshot.id");
+            }
+            if (event.snapshot->summary.empty()) {
+                AddIssue(status, 0, "missing required field: snapshot.summary");
+            }
+            if (event.snapshot->timestamp.empty()) {
+                AddIssue(status, 0, "missing required field: snapshot.timestamp");
+            }
+            if (event.snapshot->relatedEventId.empty()) {
+                AddIssue(status, 0, "missing required field: snapshot.related_event_id");
+            }
+        }
+    }
+    if (event.operation == HistoryOperation::BranchCreated) {
+        if (!event.branch) {
+            AddIssue(status, 0, "branch metadata is required for branch created events");
+        } else {
+            if (event.branch->branchId.empty()) {
+                AddIssue(status, 0, "missing required field: branch.id");
+            }
+            if (event.branch->creationReason.empty()) {
+                AddIssue(status, 0, "missing required field: branch.creation_reason");
+            }
+        }
+    }
     status.ok = status.issues.empty();
     return status;
 }
@@ -313,6 +372,8 @@ std::optional<StoredHistoryEvent> ParseHistoryEventLine(std::string_view line, s
     event.afterReference = ReadStringField(line, "after").value_or("");
     event.promptPackageId = ReadStringField(line, "prompt_package_id").value_or("");
     event.aiResultId = ReadStringField(line, "ai_result_id").value_or("");
+    event.snapshot = ReadSnapshotMetadataField(line);
+    event.branch = ReadBranchPlaceholderField(line);
 
     const auto actor = ParseActor(ReadStringField(line, "actor").value_or(""));
     if (!actor) {
@@ -357,6 +418,25 @@ void AppendAffectedFiles(std::ostringstream& output, const std::vector<std::stri
         }
     }
     output << ']';
+}
+
+void AppendSnapshotMetadata(std::ostringstream& output, const HistorySnapshotMetadata& snapshot)
+{
+    output << ",\"snapshot\":{";
+    output << "\"id\":" << Quote(snapshot.snapshotId) << ",";
+    output << "\"summary\":" << Quote(snapshot.summary) << ",";
+    output << "\"timestamp\":" << Quote(snapshot.timestamp) << ",";
+    output << "\"related_event_id\":" << Quote(snapshot.relatedEventId);
+    output << "}";
+}
+
+void AppendBranchPlaceholder(std::ostringstream& output, const HistoryBranchPlaceholder& branch)
+{
+    output << ",\"branch\":{";
+    output << "\"id\":" << Quote(branch.branchId) << ",";
+    output << "\"parent_branch_id\":" << Quote(branch.parentBranchId) << ",";
+    output << "\"creation_reason\":" << Quote(branch.creationReason);
+    output << "}";
 }
 
 HistoryLogStatus WriteJsonLine(const std::filesystem::path& path, std::string_view jsonLine)
@@ -487,6 +567,44 @@ HistoryEvent SampleUserTextEditEvent()
     };
 }
 
+StoredHistoryEvent SampleSnapshotMetadataEvent()
+{
+    StoredHistoryEvent event;
+    event.id = "hist.sample.0002";
+    event.timestamp = "2026-06-25T00:05:00Z";
+    event.actor = HistoryActor::System;
+    event.scope = HistoryScope::Work;
+    event.operation = HistoryOperation::SnapshotCreated;
+    event.summary = "Recorded snapshot metadata after text edit";
+    event.affectedFiles = {"work.afwork", "snapshots/000002.json"};
+    event.afterReference = "snapshots/000002.json";
+    event.snapshot = HistorySnapshotMetadata{
+        "snapshot.sample.0002",
+        "Opening work after first text edit",
+        "2026-06-25T00:05:00Z",
+        "hist.sample.0001",
+    };
+    return event;
+}
+
+StoredHistoryEvent SampleBranchPlaceholderEvent()
+{
+    StoredHistoryEvent event;
+    event.id = "hist.sample.0003";
+    event.timestamp = "2026-06-25T00:10:00Z";
+    event.actor = HistoryActor::User;
+    event.scope = HistoryScope::Work;
+    event.operation = HistoryOperation::BranchCreated;
+    event.summary = "Created alternate chorus branch placeholder";
+    event.affectedFiles = {"work.afwork"};
+    event.branch = HistoryBranchPlaceholder{
+        "branch.alt-chorus",
+        "branch.main",
+        "Explore a lower-energy chorus without changing main history yet",
+    };
+    return event;
+}
+
 std::string_view SampleUserTextEditJsonLine()
 {
     return R"({"id":"hist.sample.0001","timestamp":"2026-06-25T00:00:00Z","actor":"user","scope":"work","operation":"user text edit","summary":"Edited opening lyric draft","affected_files":["work.afwork","drafts/opening.md"],"before":"snapshots/000001.json","after":"snapshots/000002.json","prompt_package_id":"","ai_result_id":""})";
@@ -528,6 +646,12 @@ std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event)
     output << "\"after\":" << Quote(event.afterReference) << ",";
     output << "\"prompt_package_id\":" << Quote(event.promptPackageId) << ",";
     output << "\"ai_result_id\":" << Quote(event.aiResultId);
+    if (event.snapshot) {
+        AppendSnapshotMetadata(output, *event.snapshot);
+    }
+    if (event.branch) {
+        AppendBranchPlaceholder(output, *event.branch);
+    }
     output << "}";
     return output.str();
 }

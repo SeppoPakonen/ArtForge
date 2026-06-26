@@ -36,6 +36,38 @@ separately as JSON under a `snapshots/` directory.
 }
 ```
 
+Snapshot metadata can be recorded as a normal JSONL history event with
+`operation` set to `snapshot created`. The snapshot content itself stays in an
+adjacent JSON file; the event records metadata only:
+
+```json
+{
+  "operation": "snapshot created",
+  "after": "snapshots/000002.json",
+  "snapshot": {
+    "id": "snapshot.sample.0002",
+    "summary": "Opening work after first text edit",
+    "timestamp": "2026-06-25T00:05:00Z",
+    "related_event_id": "hist.sample.0001"
+  }
+}
+```
+
+Branch placeholders can also be stored as JSONL metadata events. They reserve
+stable branch terminology for later UI and restoration work, but do not switch
+or restore history:
+
+```json
+{
+  "operation": "branch created",
+  "branch": {
+    "id": "branch.alt-chorus",
+    "parent_branch_id": "branch.main",
+    "creation_reason": "Explore a lower-energy chorus"
+  }
+}
+```
+
 ## Rules
 
 - `id` is stable and unique within the history file.
@@ -47,6 +79,10 @@ separately as JSON under a `snapshots/` directory.
 - `affected_files[]` uses relative paths.
 - `before`, `after`, `prompt_package_id`, and `ai_result_id` may be empty when
   not relevant.
+- `snapshot` is required for `snapshot created` events and contains only
+  metadata: id, summary, timestamp, and related event id.
+- `branch` is required for `branch created` events and contains only placeholder
+  metadata: id, optional parent branch id, and creation reason.
 
 This format does not implement a full undo/redo engine, branching engine,
 snapshot restoration, or UI browser yet.

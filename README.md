@@ -71,7 +71,9 @@ reports missing, invalid, or unsupported nodes without throwing. A nested graph
 sample lives under `examples/graph/`.
 `ArtForgeHistory` provides minimal append/read helpers for `.afhistory.jsonl`
 events. Malformed lines are reported as diagnostics while valid events remain
-readable; full undo/redo restoration is still out of scope.
+readable. Snapshot metadata and branch placeholders are represented as ordinary
+history events for now; full undo/redo restoration and branch switching remain
+out of scope.
 
 One expected project folder shape is:
 

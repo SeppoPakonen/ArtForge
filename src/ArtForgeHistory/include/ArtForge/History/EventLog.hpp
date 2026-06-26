@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -45,6 +46,19 @@ struct HistoryTimestamp {
 struct RelatedAiIds {
     std::string_view promptPackageId;
     std::string_view aiResultId;
+};
+
+struct HistorySnapshotMetadata {
+    std::string snapshotId;
+    std::string summary;
+    std::string timestamp;
+    std::string relatedEventId;
+};
+
+struct HistoryBranchPlaceholder {
+    std::string branchId;
+    std::string parentBranchId;
+    std::string creationReason;
 };
 
 struct HistoryItemFields {
@@ -94,6 +108,8 @@ struct StoredHistoryEvent {
     std::string afterReference;
     std::string promptPackageId;
     std::string aiResultId;
+    std::optional<HistorySnapshotMetadata> snapshot;
+    std::optional<HistoryBranchPlaceholder> branch;
 };
 
 struct HistoryLogIssue {
@@ -119,6 +135,8 @@ std::string_view ToDisplayName(HistoryOperation operation);
 HistoryStorageConvention DefaultStorageConvention();
 HistoryItemFields PlannedHistoryItemFields();
 HistoryEvent SampleUserTextEditEvent();
+StoredHistoryEvent SampleSnapshotMetadataEvent();
+StoredHistoryEvent SampleBranchPlaceholderEvent();
 std::string_view SampleUserTextEditJsonLine();
 
 std::string SerializeHistoryEventJsonLine(const HistoryEvent& event);
