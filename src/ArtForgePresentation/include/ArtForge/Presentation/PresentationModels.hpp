@@ -62,6 +62,15 @@ struct SelectionModel {
     std::string displayLabel;
 };
 
+struct PromptPreviewModel {
+    bool available{};
+    std::string selectedItemSummary;
+    std::string operation;
+    std::vector<std::string> layerSummaries;
+    std::string outputContract;
+    std::vector<std::string> diagnostics;
+};
+
 struct SelectionChangedRequest {
     std::string sourcePath;
     int rowIndex{-1};

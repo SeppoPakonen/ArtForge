@@ -12,6 +12,7 @@ struct WorkAppPresentationModel {
     TableModel domainTable;
     PropertyListModel properties;
     SelectionModel selection;
+    PromptPreviewModel promptPreview;
 };
 
 WorkAppPresentationModel BuildWorkAppPresentationModel(const std::filesystem::path& workPath);

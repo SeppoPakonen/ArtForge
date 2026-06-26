@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ArtForgeFiles\ArtForgeFiles.vcxproj"><Project>{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}</Project></ProjectReference>
+    <ProjectReference Include="..\ArtForgeServices\ArtForgeServices.vcxproj"><Project>{6CD6F39D-826F-4595-91F1-E8906512B7A8}</Project></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

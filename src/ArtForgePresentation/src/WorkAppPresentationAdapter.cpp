@@ -2,6 +2,7 @@
 
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
+#include "ArtForge/Services/PromptCommandService.hpp"
 
 #include <string>
 
@@ -172,6 +173,56 @@ void AddSelectionProperties(PropertyListModel& properties, const std::filesystem
     }
 }
 
+PromptPreviewModel BuildPromptPreview(const std::filesystem::path& workPath, const SelectionModel& selection)
+{
+    PromptPreviewModel preview;
+    preview.operation = "Preview selected item prompt";
+    if (!selection.hasSelection) {
+        preview.diagnostics.push_back("Select a work item row to preview a prompt package.");
+        return preview;
+    }
+
+    const auto command = ArtForge::Services::BuildSelectedItemPromptCommand({
+        workPath,
+        selection.domain,
+        selection.itemType,
+        selection.itemId,
+        selection.itemIndex,
+        preview.operation,
+    });
+
+    preview.available = command.command.status.ok;
+    preview.selectedItemSummary = selection.itemType + " " + selection.itemId + " (" + selection.domain + ")";
+    preview.layerSummaries = {
+        "selected domain item JSON",
+        "selected item request Markdown",
+        command.command.debugSummary,
+    };
+    preview.outputContract = "selected item output contract JSON";
+    for (const auto& diagnostic : command.command.status.diagnostics) {
+        preview.diagnostics.push_back(diagnostic.message);
+    }
+    return preview;
+}
+
+void AddPromptPreviewProperties(PropertyListModel& properties, const PromptPreviewModel& preview)
+{
+    AddProperty(properties, "Prompt preview", preview.available ? "available" : "not available");
+    if (!preview.selectedItemSummary.empty()) {
+        AddProperty(properties, "Preview item", preview.selectedItemSummary);
+    }
+    AddProperty(properties, "Operation", preview.operation);
+    for (std::size_t index = 0; index < preview.layerSummaries.size(); ++index) {
+        AddProperty(properties, "Prompt layer " + std::to_string(index + 1), preview.layerSummaries[index]);
+    }
+    if (!preview.outputContract.empty()) {
+        AddProperty(properties, "Output schema", preview.outputContract);
+    }
+    for (std::size_t index = 0; index < preview.diagnostics.size(); ++index) {
+        AddProperty(properties, "Prompt diagnostic " + std::to_string(index + 1), preview.diagnostics[index]);
+    }
+}
+
 TableModel BuildUnsupportedTable(std::string reason)
 {
     TableModel table;
@@ -231,7 +282,9 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(
     model.navigation = BuildNavigation(result, workPath);
     model.properties = BuildBaseProperties(result, workPath);
     model.selection = selection;
+    model.promptPreview = BuildPromptPreview(workPath, model.selection);
     AddSelectionProperties(model.properties, workPath, model.selection);
+    AddPromptPreviewProperties(model.properties, model.promptPreview);
 
     if (!result.status.ok) {
         model.domainTable = BuildUnsupportedTable(model.status.diagnostics.empty() ? "Work file load failed" : model.status.diagnostics.front());

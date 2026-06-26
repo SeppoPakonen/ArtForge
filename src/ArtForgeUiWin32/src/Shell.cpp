@@ -526,7 +526,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
 
         state->detailTabs.Create(window, DetailTabId, create->hInstance);
         state->detailTabs.AddTab(0, L"Details");
-        state->detailTabs.AddTab(1, L"Actions");
+        state->detailTabs.AddTab(1, L"Prompt preview");
 
         state->propertyPanel.Create(window, DetailListId, create->hInstance);
         PopulatePropertyPanel(*state);
