@@ -1,0 +1,71 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.lyrics.sample",
+  "scope": "work",
+  "workKind": "song",
+  "workDomain": "lyrics",
+  "displayName": "Sample Lyrics Work",
+  "series": {
+    "id": "series.sample",
+    "path": "../minimal/sample.afseries.json"
+  },
+  "sources": [
+    {
+      "id": "source.lyrics.note",
+      "path": "sources/lyrics-note.md"
+    }
+  ],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {
+    "language": "en"
+  },
+  "domain": {
+    "song": {
+      "title": "Sample Lyrics Work",
+      "tempoBpm": 92,
+      "key": "A minor"
+    },
+    "performerProfile": {
+      "id": "performer.lead",
+      "path": "performers/lead-singer.json"
+    },
+    "technicalBaseText": "Verse establishes a low, narrow melodic phrase before the chorus opens.",
+    "sections": [
+      {
+        "id": "section.verse1",
+        "label": "Verse 1",
+        "order": 1
+      },
+      {
+        "id": "section.chorus1",
+        "label": "Chorus 1",
+        "order": 2
+      }
+    ],
+    "lyricLines": [
+      {
+        "id": "line.v1.001",
+        "sectionId": "section.verse1",
+        "timeRange": "00:00:08.000-00:00:12.000",
+        "text": "I mark the door with a quiet name",
+        "evaluation": {
+          "singability": "pending",
+          "clarity": "pending"
+        }
+      },
+      {
+        "id": "line.c1.001",
+        "sectionId": "section.chorus1",
+        "timeRange": "00:00:38.000-00:00:42.000",
+        "text": "Hold the light where the road begins",
+        "evaluation": {
+          "hookStrength": "pending",
+          "rangeFit": "pending"
+        }
+      }
+    ]
+  }
+}

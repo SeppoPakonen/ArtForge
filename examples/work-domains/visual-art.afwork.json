@@ -1,0 +1,63 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.visual.sample",
+  "scope": "work",
+  "workKind": "image",
+  "workDomain": "visualArt",
+  "displayName": "Sample Visual Art Work",
+  "series": {
+    "id": "series.sample",
+    "path": "../minimal/sample.afseries.json"
+  },
+  "sources": [
+    {
+      "id": "source.reference.photo",
+      "path": "references/reference-photo.txt"
+    }
+  ],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {
+    "canvas": "square"
+  },
+  "domain": {
+    "viewerLayers": [
+      {
+        "id": "viewer.foreground",
+        "label": "Foreground figure",
+        "intent": "Readable silhouette and first focal point"
+      },
+      {
+        "id": "viewer.background",
+        "label": "Background space",
+        "intent": "Quiet depth behind the subject"
+      }
+    ],
+    "paintLayers": [
+      {
+        "id": "paint.blockout",
+        "label": "Blockout",
+        "intent": "Large value masses before detail"
+      },
+      {
+        "id": "paint.light",
+        "label": "Light pass",
+        "intent": "Separate face, hands, and object edges"
+      }
+    ],
+    "meaningCategories": {
+      "firstGlance": "A lone subject holding a bright object.",
+      "midDepth": "The object guides the viewer through the composition.",
+      "deepMeaning": "The image contrasts private memory with public direction."
+    },
+    "references": [
+      {
+        "id": "reference.pose",
+        "path": "references/pose-placeholder.txt",
+        "kind": "pose"
+      }
+    ]
+  }
+}

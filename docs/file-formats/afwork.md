@@ -45,6 +45,10 @@ history by relative path.
 - `id` is stable within the workspace.
 - `scope` must be `work`.
 - `workKind` is a small domain label such as `song`, `image`, or `scene`.
+- `workDomain` may be added as a canonical domain discriminator such as
+  `lyrics`, `visualArt`, or `scriptStoryboard`.
 - `displayName` is human-facing English text by default.
 - `series.path`, `sources[].path`, and `history.path` should be relative paths.
 - `metadata` is optional and should remain JSON object data.
+- Domain-specific payloads should live under `domain` and remain
+  human-readable JSON. See [afwork-domains.md](afwork-domains.md).

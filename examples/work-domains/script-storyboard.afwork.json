@@ -1,0 +1,63 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.script.sample",
+  "scope": "work",
+  "workKind": "scene",
+  "workDomain": "scriptStoryboard",
+  "displayName": "Sample Script Storyboard Work",
+  "series": {
+    "id": "series.sample",
+    "path": "../minimal/sample.afseries.json"
+  },
+  "sources": [
+    {
+      "id": "source.scene.note",
+      "path": "sources/scene-note.md"
+    }
+  ],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {
+    "format": "short scene"
+  },
+  "domain": {
+    "scenes": [
+      {
+        "id": "scene.opening",
+        "title": "Opening Room",
+        "timeRange": "00:00:00.000-00:01:30.000",
+        "order": 1
+      }
+    ],
+    "blocks": [
+      {
+        "id": "block.opening.action",
+        "sceneId": "scene.opening",
+        "kind": "action",
+        "timeRange": "00:00:00.000-00:00:12.000",
+        "speaker": "",
+        "voice": "observational",
+        "text": "A desk lamp switches on before the room is visible."
+      },
+      {
+        "id": "block.opening.dialogue",
+        "sceneId": "scene.opening",
+        "kind": "dialogue",
+        "timeRange": "00:00:12.000-00:00:18.000",
+        "speaker": "Mara",
+        "voice": "controlled",
+        "text": "We only get one clean version of this."
+      }
+    ],
+    "storyboard": [
+      {
+        "id": "shot.opening.001",
+        "sceneId": "scene.opening",
+        "visualization": "Close shot of hand reaching for the lamp switch.",
+        "referencePath": "storyboard/shot-001-placeholder.txt"
+      }
+    ]
+  }
+}
