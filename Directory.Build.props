@@ -13,7 +13,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(SolutionDir)src\ArtForgeCore\include;$(SolutionDir)src\ArtForgeDeps\include;$(SolutionDir)src\ArtForgeFiles\include;$(SolutionDir)src\ArtForgeHistory\include;$(SolutionDir)src\ArtForgePrompting\include;$(SolutionDir)src\ArtForgeUiWin32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(SolutionDir)src\ArtForgeCore\include;$(SolutionDir)src\ArtForgeDeps\include;$(SolutionDir)src\ArtForgeFiles\include;$(SolutionDir)src\ArtForgeHistory\include;$(SolutionDir)src\ArtForgePresentation\include;$(SolutionDir)src\ArtForgePrompting\include;$(SolutionDir)src\ArtForgeServices\include;$(SolutionDir)src\ArtForgeUiWin32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>Comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>

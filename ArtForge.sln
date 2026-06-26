@@ -4,6 +4,10 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeCore", "src\ArtForgeCore\ArtForgeCore.vcxproj", "{8A1C7949-297C-4EB8-8468-1C612935D372}"
 EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeServices", "src\ArtForgeServices\ArtForgeServices.vcxproj", "{6CD6F39D-826F-4595-91F1-E8906512B7A8}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgePresentation", "src\ArtForgePresentation\ArtForgePresentation.vcxproj", "{67C97C8F-1B6B-45BA-A794-53E864525680}"
+EndProject
 Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ArtForgeFiles", "src\ArtForgeFiles\ArtForgeFiles.vcxproj", "{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}"
 	ProjectSection(ProjectDependencies) = postProject
 		{8A1C7949-297C-4EB8-8468-1C612935D372} = {8A1C7949-297C-4EB8-8468-1C612935D372}
@@ -63,6 +67,14 @@ Global
 		{8A1C7949-297C-4EB8-8468-1C612935D372}.Debug|x64.Build.0 = Debug|x64
 		{8A1C7949-297C-4EB8-8468-1C612935D372}.Release|x64.ActiveCfg = Release|x64
 		{8A1C7949-297C-4EB8-8468-1C612935D372}.Release|x64.Build.0 = Release|x64
+		{6CD6F39D-826F-4595-91F1-E8906512B7A8}.Debug|x64.ActiveCfg = Debug|x64
+		{6CD6F39D-826F-4595-91F1-E8906512B7A8}.Debug|x64.Build.0 = Debug|x64
+		{6CD6F39D-826F-4595-91F1-E8906512B7A8}.Release|x64.ActiveCfg = Release|x64
+		{6CD6F39D-826F-4595-91F1-E8906512B7A8}.Release|x64.Build.0 = Release|x64
+		{67C97C8F-1B6B-45BA-A794-53E864525680}.Debug|x64.ActiveCfg = Debug|x64
+		{67C97C8F-1B6B-45BA-A794-53E864525680}.Debug|x64.Build.0 = Debug|x64
+		{67C97C8F-1B6B-45BA-A794-53E864525680}.Release|x64.ActiveCfg = Release|x64
+		{67C97C8F-1B6B-45BA-A794-53E864525680}.Release|x64.Build.0 = Release|x64
 		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Debug|x64.ActiveCfg = Debug|x64
 		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Debug|x64.Build.0 = Debug|x64
 		{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}.Release|x64.ActiveCfg = Release|x64
