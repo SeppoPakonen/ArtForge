@@ -44,6 +44,11 @@ bool IsDescribeEditCommandFoundationCommand(int argumentCount, wchar_t** argumen
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-edit-command-foundation";
 }
 
+bool IsUpdateWorkTextCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 8 && std::wstring_view{arguments[1]} == L"--update-work-text";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -146,6 +151,28 @@ std::string BuildSelectedPromptDebugDump(wchar_t** arguments)
     return result.promptDebugDump;
 }
 
+std::string UpdateWorkText(wchar_t** arguments)
+{
+    const auto result = ArtForge::Files::UpdateWorkDomainTextField({
+        std::filesystem::path{arguments[2]},
+        WideToUtf8(arguments[3]),
+        WideToUtf8(arguments[4]),
+        WideToUtf8(arguments[5]),
+        WideToUtf8(arguments[6]),
+        WideToUtf8(arguments[7]),
+    });
+
+    std::ostringstream output;
+    output << "Path: " << result.path.generic_string() << "\n";
+    output << "Update status: " << (result.status.ok ? "OK" : "failed") << "\n";
+    output << "Previous: " << result.previousText << "\n";
+    output << "Replacement: " << result.replacementText << "\n";
+    for (const auto& issue : result.status.issues) {
+        output << "Issue: " << issue.message << "\n";
+    }
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -170,6 +197,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return 0;
+    }
+    if (arguments != nullptr && IsUpdateWorkTextCommand(argumentCount, arguments)) {
+        const auto result = UpdateWorkText(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Update status: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

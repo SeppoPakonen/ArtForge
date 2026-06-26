@@ -95,9 +95,28 @@ struct ScriptStoryboardWorkViewModel {
     std::vector<StoryboardPlaceholderView> storyboard;
 };
 
+struct WorkDomainTextUpdateRequest {
+    std::filesystem::path path;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    std::string field;
+    std::string replacementText;
+};
+
+struct WorkDomainTextUpdateResult {
+    DomainWorkViewStatus status;
+    std::filesystem::path path;
+    std::filesystem::path tempPath;
+    std::string previousText;
+    std::string replacementText;
+};
+
 LyricsWorkViewModel LoadLyricsWorkViewModel(const std::filesystem::path& path);
 VisualArtWorkViewModel LoadVisualArtWorkViewModel(const std::filesystem::path& path);
 ScriptStoryboardWorkViewModel LoadScriptStoryboardWorkViewModel(const std::filesystem::path& path);
+
+WorkDomainTextUpdateResult UpdateWorkDomainTextField(const WorkDomainTextUpdateRequest& request);
 
 std::string DescribeDomainWorkViewModel(const std::filesystem::path& path);
 

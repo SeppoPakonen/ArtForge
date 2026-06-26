@@ -6,6 +6,7 @@
 #include <optional>
 #include <sstream>
 #include <string_view>
+#include <system_error>
 
 namespace ArtForge::Files {
 
@@ -82,6 +83,60 @@ std::optional<std::string> ReadStringField(std::string_view json, std::string_vi
             return value;
         }
         value += character;
+    }
+
+    return std::nullopt;
+}
+
+std::string EscapeJsonString(std::string_view value)
+{
+    std::string escaped;
+    for (const char character : value) {
+        switch (character) {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped += character;
+            break;
+        }
+    }
+    return escaped;
+}
+
+std::optional<std::pair<std::size_t, std::size_t>> FindStringFieldRange(std::string_view json, std::string_view key)
+{
+    const auto valuePosition = FindFieldValue(json, key);
+    if (!valuePosition || *valuePosition >= json.size() || json[*valuePosition] != '"') {
+        return std::nullopt;
+    }
+
+    bool escaped = false;
+    for (auto index = *valuePosition + 1; index < json.size(); ++index) {
+        const char character = json[index];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (character == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (character == '"') {
+            return std::make_pair(*valuePosition + 1, index);
+        }
     }
 
     return std::nullopt;
@@ -183,6 +238,86 @@ std::vector<std::string_view> ObjectItems(std::string_view arrayJson)
     }
 
     return items;
+}
+
+std::optional<std::pair<std::size_t, std::size_t>> FindObjectByIdRange(std::string_view arrayJson, std::string_view itemId)
+{
+    bool inString = false;
+    bool escaped = false;
+    int depth = 0;
+    std::optional<std::size_t> objectStart;
+
+    for (std::size_t index = 0; index < arrayJson.size(); ++index) {
+        const char character = arrayJson[index];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (character == '\\') {
+                escaped = true;
+            } else if (character == '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (character == '"') {
+            inString = true;
+        } else if (character == '{') {
+            if (depth == 0) {
+                objectStart = index;
+            }
+            ++depth;
+        } else if (character == '}') {
+            --depth;
+            if (depth == 0 && objectStart) {
+                const auto object = arrayJson.substr(*objectStart, index - *objectStart + 1);
+                if (ReadStringField(object, "id").value_or("") == itemId) {
+                    return std::make_pair(*objectStart, index + 1);
+                }
+                objectStart.reset();
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string_view> ArrayKeyForUpdate(std::string_view domain, std::string_view itemType)
+{
+    if (domain == "lyrics" && itemType == "lyric_line") {
+        return "lyricLines";
+    }
+    if (domain == "visualArt" && itemType == "viewer_layer") {
+        return "viewerLayers";
+    }
+    if (domain == "visualArt" && itemType == "paint_layer") {
+        return "paintLayers";
+    }
+    if (domain == "scriptStoryboard" && itemType == "script_block") {
+        return "blocks";
+    }
+    return std::nullopt;
+}
+
+bool IsSupportedUpdateField(std::string_view domain, std::string_view itemType, std::string_view field)
+{
+    if (domain == "lyrics" && itemType == "lyric_line") {
+        return field == "text";
+    }
+    if (domain == "visualArt" && (itemType == "viewer_layer" || itemType == "paint_layer")) {
+        return field == "intent";
+    }
+    if (domain == "scriptStoryboard" && itemType == "script_block") {
+        return field == "text";
+    }
+    return false;
+}
+
+ScopeFileIssue MakeIssue(std::string message)
+{
+    ScopeFileIssue issue;
+    issue.message = std::move(message);
+    return issue;
 }
 
 std::string ReadIntAsString(std::string_view json, std::string_view key)
@@ -355,6 +490,110 @@ ScriptStoryboardWorkViewModel LoadScriptStoryboardWorkViewModel(const std::files
     }
 
     return model;
+}
+
+WorkDomainTextUpdateResult UpdateWorkDomainTextField(const WorkDomainTextUpdateRequest& request)
+{
+    WorkDomainTextUpdateResult result;
+    result.path = request.path;
+    result.tempPath = request.path;
+    result.tempPath += ".tmp";
+    result.replacementText = request.replacementText;
+
+    const auto base = LoadWorkScopeFile(request.path);
+    result.status = MakeStatus(base, request.domain);
+    if (!result.status.ok) {
+        return result;
+    }
+
+    if (!IsSupportedUpdateField(request.domain, request.itemType, request.field)) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("unsupported editable field: " + request.domain + "/" + request.itemType + "." + request.field));
+        return result;
+    }
+
+    auto json = ReadTextFile(request.path);
+    if (json.empty()) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("file is empty or unreadable"));
+        return result;
+    }
+
+    const auto arrayKey = ArrayKeyForUpdate(request.domain, request.itemType);
+    if (!arrayKey) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("unsupported edit target"));
+        return result;
+    }
+
+    const auto arrayValuePosition = FindFieldValue(json, *arrayKey);
+    const auto array = ReadContainer(json, *arrayKey, '[', ']');
+    if (!arrayValuePosition || !array) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("target array not found: " + std::string{*arrayKey}));
+        return result;
+    }
+
+    const auto objectRangeInArray = FindObjectByIdRange(*array, request.itemId);
+    if (!objectRangeInArray) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("target item not found: " + request.itemId));
+        return result;
+    }
+
+    const auto objectStart = *arrayValuePosition + objectRangeInArray->first;
+    const auto objectEnd = *arrayValuePosition + objectRangeInArray->second;
+    const auto objectJson = std::string_view{json}.substr(objectStart, objectEnd - objectStart);
+    const auto fieldRangeInObject = FindStringFieldRange(objectJson, request.field);
+    if (!fieldRangeInObject) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("target field not found or not a string: " + request.field));
+        return result;
+    }
+
+    result.previousText = ReadStringField(objectJson, request.field).value_or("");
+    const auto fieldStart = objectStart + fieldRangeInObject->first;
+    const auto fieldEnd = objectStart + fieldRangeInObject->second;
+    json.replace(fieldStart, fieldEnd - fieldStart, EscapeJsonString(request.replacementText));
+
+    {
+        std::ofstream output{result.tempPath, std::ios::trunc};
+        if (!output) {
+            result.status.ok = false;
+            result.status.issues.push_back(MakeIssue("could not open temp file for writing"));
+            return result;
+        }
+        output << json;
+        if (!json.empty() && json.back() != '\n') {
+            output << "\n";
+        }
+    }
+
+    const auto tempLoad = LoadWorkScopeFile(result.tempPath);
+    if (!tempLoad.status.ok) {
+        std::error_code removeError;
+        std::filesystem::remove(result.tempPath, removeError);
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("updated temp file failed reload validation"));
+        return result;
+    }
+
+    std::error_code replaceError;
+    std::filesystem::rename(result.tempPath, request.path, replaceError);
+    if (replaceError) {
+        std::filesystem::copy_file(result.tempPath, request.path, std::filesystem::copy_options::overwrite_existing, replaceError);
+        std::error_code removeError;
+        std::filesystem::remove(result.tempPath, removeError);
+    }
+    if (replaceError) {
+        result.status.ok = false;
+        result.status.issues.push_back(MakeIssue("could not replace target file: " + replaceError.message()));
+        return result;
+    }
+
+    const auto reload = LoadWorkScopeFile(request.path);
+    result.status = MakeStatus(reload, request.domain);
+    return result;
 }
 
 std::string DescribeDomainWorkViewModel(const std::filesystem::path& path)
