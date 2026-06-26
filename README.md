@@ -24,6 +24,35 @@ views. See [docs/architecture/002-gui-stack.md](docs/architecture/002-gui-stack.
 The shared `ArtForgeUiWin32` module now provides the minimal native shell
 foundation used by the scope applications.
 
+## UI mockups
+
+These mockups show the intended visible direction for the modular scope shells.
+They are references for future UI work, not implemented editor screens yet.
+
+### Solution scope
+
+![ArtForge solution scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/solution_v1.png)
+
+### Artist scope
+
+![ArtForge artist scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/artist_v1.png)
+
+### Series scope
+
+![ArtForge series scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/series_v1.png)
+
+### Work scope: lyrics
+
+![ArtForge lyrics work scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/work-lyrics_v1.png)
+
+### Work scope: visual art
+
+![ArtForge visual art work scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/work-fineart_v1.png)
+
+### Work scope: dialogue
+
+![ArtForge dialogue work scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/work-dialogue_v1.png)
+
 ## Process model
 
 ArtForge keeps the main creative scopes independently launchable:
