@@ -1,5 +1,6 @@
 #include "ArtForge/History/EventLog.hpp"
 
+#include <charconv>
 #include <cctype>
 #include <chrono>
 #include <fstream>
@@ -156,6 +157,26 @@ std::optional<std::string> ReadStringField(std::string_view json, std::string_vi
     return ReadStringAt(json, *valuePosition, nextPosition);
 }
 
+std::optional<int> ReadIntField(std::string_view json, std::string_view key)
+{
+    const auto valuePosition = FindFieldValue(json, key);
+    if (!valuePosition) {
+        return std::nullopt;
+    }
+
+    auto endPosition = *valuePosition;
+    while (endPosition < json.size() && std::isdigit(static_cast<unsigned char>(json[endPosition])) != 0) {
+        ++endPosition;
+    }
+
+    int value = 0;
+    const auto parseResult = std::from_chars(json.data() + *valuePosition, json.data() + endPosition, value);
+    if (parseResult.ec != std::errc{}) {
+        return std::nullopt;
+    }
+    return value;
+}
+
 std::optional<std::string_view> ReadContainer(std::string_view json, std::string_view key, char open, char close)
 {
     const auto valuePosition = FindFieldValue(json, key);
@@ -250,6 +271,24 @@ std::optional<HistoryBranchPlaceholder> ReadBranchPlaceholderField(std::string_v
         ReadStringField(*objectJson, "id").value_or(""),
         ReadStringField(*objectJson, "parent_branch_id").value_or(""),
         ReadStringField(*objectJson, "creation_reason").value_or(""),
+    };
+}
+
+std::optional<DomainItemHistoryMetadata> ReadDomainItemMetadataField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "domain_item", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return DomainItemHistoryMetadata{
+        ReadStringField(*objectJson, "work_id").value_or(""),
+        ReadStringField(*objectJson, "work_path").value_or(""),
+        ReadStringField(*objectJson, "domain").value_or(""),
+        ReadStringField(*objectJson, "item_type").value_or(""),
+        ReadStringField(*objectJson, "item_id").value_or(""),
+        ReadIntField(*objectJson, "item_index").value_or(0),
+        ReadStringField(*objectJson, "operation_summary").value_or(""),
     };
 }
 
@@ -405,6 +444,7 @@ std::optional<StoredHistoryEvent> ParseHistoryEventLine(std::string_view line, s
     event.aiResultId = ReadStringField(line, "ai_result_id").value_or("");
     event.snapshot = ReadSnapshotMetadataField(line);
     event.branch = ReadBranchPlaceholderField(line);
+    event.domainItem = ReadDomainItemMetadataField(line);
 
     const auto actor = ParseActor(ReadStringField(line, "actor").value_or(""));
     if (!actor) {
@@ -467,6 +507,19 @@ void AppendBranchPlaceholder(std::ostringstream& output, const HistoryBranchPlac
     output << "\"id\":" << Quote(branch.branchId) << ",";
     output << "\"parent_branch_id\":" << Quote(branch.parentBranchId) << ",";
     output << "\"creation_reason\":" << Quote(branch.creationReason);
+    output << "}";
+}
+
+void AppendDomainItemMetadata(std::ostringstream& output, const DomainItemHistoryMetadata& metadata)
+{
+    output << ",\"domain_item\":{";
+    output << "\"work_id\":" << Quote(metadata.workId) << ",";
+    output << "\"work_path\":" << Quote(metadata.workPath) << ",";
+    output << "\"domain\":" << Quote(metadata.domain) << ",";
+    output << "\"item_type\":" << Quote(metadata.itemType) << ",";
+    output << "\"item_id\":" << Quote(metadata.itemId) << ",";
+    output << "\"item_index\":" << metadata.itemIndex << ",";
+    output << "\"operation_summary\":" << Quote(metadata.operationSummary);
     output << "}";
 }
 
@@ -557,6 +610,16 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "file load failed";
     case HistoryOperation::FileSaveSucceeded:
         return "file save succeeded";
+    case HistoryOperation::DomainItemSelected:
+        return "domain item selected";
+    case HistoryOperation::PromptRequested:
+        return "prompt requested";
+    case HistoryOperation::CritiqueRequested:
+        return "critique requested";
+    case HistoryOperation::RepairAlternativesRequested:
+        return "repair alternatives requested";
+    case HistoryOperation::ItemFlaggedForReview:
+        return "item flagged for review";
     }
 
     return "unknown";
@@ -691,6 +754,9 @@ std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event)
     if (event.branch) {
         AppendBranchPlaceholder(output, *event.branch);
     }
+    if (event.domainItem) {
+        AppendDomainItemMetadata(output, *event.domainItem);
+    }
     output << "}";
     return output.str();
 }
@@ -785,6 +851,44 @@ HistoryLogStatus RecordFileOperationHistoryEvent(
         return AppendHistoryEventJsonLine(
             DefaultOperationHistoryPath(scopeFilePath),
             CreateFileOperationHistoryEvent(scope, operation, scopeFilePath, summary, detail));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
+}
+
+StoredHistoryEvent CreateDomainItemHistoryEvent(
+    HistoryOperation operation,
+    const DomainItemHistoryMetadata& metadata)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    const auto operationName = ToDisplayName(operation);
+    const auto identity = metadata.workPath + metadata.domain + metadata.itemType + metadata.itemId + std::to_string(metadata.itemIndex) + std::string{operationName};
+
+    StoredHistoryEvent event;
+    event.id = "hist.domain." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(identity));
+    event.timestamp = timestamp;
+    event.actor = HistoryActor::User;
+    event.scope = HistoryScope::Work;
+    event.operation = operation;
+    event.summary = metadata.operationSummary.empty() ? std::string{operationName} : metadata.operationSummary;
+    if (!metadata.workPath.empty()) {
+        event.affectedFiles = {metadata.workPath};
+    }
+    event.domainItem = metadata;
+    return event;
+}
+
+HistoryLogStatus RecordDomainItemHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const DomainItemHistoryMetadata& metadata)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreateDomainItemHistoryEvent(operation, metadata));
     } catch (const std::exception& exception) {
         return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
     } catch (...) {

@@ -36,7 +36,12 @@ enum class HistoryOperation {
     FileOpenAttempted,
     FileLoadSucceeded,
     FileLoadFailed,
-    FileSaveSucceeded
+    FileSaveSucceeded,
+    DomainItemSelected,
+    PromptRequested,
+    CritiqueRequested,
+    RepairAlternativesRequested,
+    ItemFlaggedForReview
 };
 
 struct HistoryEventId {
@@ -63,6 +68,16 @@ struct HistoryBranchPlaceholder {
     std::string branchId;
     std::string parentBranchId;
     std::string creationReason;
+};
+
+struct DomainItemHistoryMetadata {
+    std::string workId;
+    std::string workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{};
+    std::string operationSummary;
 };
 
 struct HistoryItemFields {
@@ -114,6 +129,7 @@ struct StoredHistoryEvent {
     std::string aiResultId;
     std::optional<HistorySnapshotMetadata> snapshot;
     std::optional<HistoryBranchPlaceholder> branch;
+    std::optional<DomainItemHistoryMetadata> domainItem;
 };
 
 struct HistoryLogIssue {
@@ -163,12 +179,20 @@ HistoryLogStatus RecordFileOperationHistoryEvent(
     std::string_view summary,
     std::string_view detail);
 
+StoredHistoryEvent CreateDomainItemHistoryEvent(
+    HistoryOperation operation,
+    const DomainItemHistoryMetadata& metadata);
+HistoryLogStatus RecordDomainItemHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const DomainItemHistoryMetadata& metadata);
+
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 13> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 18> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -182,6 +206,11 @@ constexpr std::array<HistoryOperation, 13> ExampleHistoryOperations{{
     HistoryOperation::FileLoadSucceeded,
     HistoryOperation::FileLoadFailed,
     HistoryOperation::FileSaveSucceeded,
+    HistoryOperation::DomainItemSelected,
+    HistoryOperation::PromptRequested,
+    HistoryOperation::CritiqueRequested,
+    HistoryOperation::RepairAlternativesRequested,
+    HistoryOperation::ItemFlaggedForReview,
 }};
 
 }
