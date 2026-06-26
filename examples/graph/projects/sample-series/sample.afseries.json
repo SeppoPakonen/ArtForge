@@ -1,0 +1,24 @@
+{
+  "format": "artforge.series",
+  "schemaVersion": 1,
+  "id": "series.graph-sample",
+  "scope": "series",
+  "displayName": "Graph Sample Series",
+  "artist": {
+    "id": "artist.graph-sample",
+    "path": "../../artists/sample.afartist.json"
+  },
+  "works": [
+    {
+      "id": "work.second",
+      "path": "works/02-second/sample.afwork.json",
+      "order": 2
+    },
+    {
+      "id": "work.first",
+      "path": "works/01-first/sample.afwork.json",
+      "order": 1
+    }
+  ],
+  "metadata": {}
+}

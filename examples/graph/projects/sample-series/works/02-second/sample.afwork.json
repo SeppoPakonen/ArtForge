@@ -1,0 +1,22 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.second",
+  "scope": "work",
+  "workKind": "image",
+  "displayName": "Second Graph Work",
+  "series": {
+    "id": "series.graph-sample",
+    "path": "../../sample.afseries.json"
+  },
+  "sources": [
+    {
+      "id": "source.second.note",
+      "path": "sources/note.md"
+    }
+  ],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {}
+}

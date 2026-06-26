@@ -1,0 +1,22 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.first",
+  "scope": "work",
+  "workKind": "song",
+  "displayName": "First Graph Work",
+  "series": {
+    "id": "series.graph-sample",
+    "path": "../../sample.afseries.json"
+  },
+  "sources": [
+    {
+      "id": "source.first.note",
+      "path": "sources/note.md"
+    }
+  ],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {}
+}

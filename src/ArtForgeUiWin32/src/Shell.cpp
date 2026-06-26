@@ -1,5 +1,6 @@
 #include "ArtForge/UiWin32/Shell.hpp"
 
+#include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 
 #include <commctrl.h>
@@ -98,8 +99,15 @@ ArtForge::Files::ScopeFileLoadStatus LoadScopeFileStatus(
     const std::filesystem::path& path)
 {
     switch (scope) {
-    case ArtForge::Core::ScopeKind::Solution:
-        return ArtForge::Files::LoadSolutionScopeFile(path).status;
+    case ArtForge::Core::ScopeKind::Solution: {
+        const auto graph = ArtForge::Files::LoadSolutionProjectGraph(path);
+        const auto graphIssues = ArtForge::Files::FlattenGraphIssues(graph);
+        ArtForge::Files::ScopeFileLoadStatus status{graphIssues.empty(), {}};
+        for (const auto& issue : graphIssues) {
+            status.issues.push_back({issue.path.string() + ": " + issue.message});
+        }
+        return status;
+    }
     case ArtForge::Core::ScopeKind::Artist:
         return ArtForge::Files::LoadArtistScopeFile(path).status;
     case ArtForge::Core::ScopeKind::Series:

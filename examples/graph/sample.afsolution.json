@@ -1,0 +1,20 @@
+{
+  "format": "artforge.solution",
+  "schemaVersion": 1,
+  "id": "solution.graph-sample",
+  "scope": "solution",
+  "displayName": "Graph Sample Solution",
+  "artists": [
+    {
+      "id": "artist.graph-sample",
+      "path": "artists/sample.afartist.json"
+    }
+  ],
+  "projects": [
+    {
+      "id": "series.graph-sample",
+      "path": "projects/sample-series/sample.afseries.json"
+    }
+  ],
+  "metadata": {}
+}
