@@ -1,3 +1,4 @@
+#include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
 
@@ -59,6 +60,7 @@ std::string DescribeWorkDomain(const std::filesystem::path& path)
     output << "Work id: " << result.file.id << "\n";
     output << "Work domain: " << (result.file.workDomain.empty() ? "(unspecified)" : result.file.workDomain) << "\n";
     output << "Workspace: " << WorkspaceLabel(result.file.workDomain) << "\n";
+    output << ArtForge::Files::DescribeDomainWorkViewModel(path);
     return output.str();
 }
 
