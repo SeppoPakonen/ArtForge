@@ -102,3 +102,10 @@ choose automatic resolutions.
 
 Sample diagnostic output is stored in
 [sample-diagnostics.txt](sample-diagnostics.txt).
+
+`BuildWorldUpdateSummary` groups those diagnostics into a compact world update
+report with package counts, severity counts, packages needing attention, missing
+dependencies, blockers, flag conflicts, missing slots, and circular dependency
+placeholders. It is still a formatter over diagnostics, not a dependency
+solver. Sample output is stored in
+[sample-world-update-summary.txt](sample-world-update-summary.txt).

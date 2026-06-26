@@ -243,3 +243,6 @@ for the first documented pressure package examples.
 A future world update view should show packages needing update, missing slots,
 unresolved conflicts, fragments not imported, tasks required before a version
 can be accepted, and works blocked by project-level decisions.
+`ArtForgeDeps` now includes a basic world update summary formatter that groups
+current diagnostics for console output and later UI display; it does not run a
+solver.

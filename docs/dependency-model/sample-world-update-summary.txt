@@ -1,0 +1,36 @@
+ArtForge World Update Summary
+Packages: 7
+Diagnostics: 11 error, 4 warning, 0 info
+
+Packages needing attention (4)
+- album-arc-pressure
+- cycle-a
+- live-solo-performance
+- low-cost-music-video
+
+Missing dependencies (7)
+- [error] missing dependency for live-solo-performance: singable-range is missing: melody must stay within the artist's reliable live range
+- [error] missing dependency for live-solo-performance: portable-instrumentation is missing: arrangement must work without unavailable collaborators
+- [error] missing dependency for low-cost-music-video: few-location-plan is missing: concept must fit a small number of locations
+- [error] missing dependency for low-cost-music-video: daylight-availability is missing: shooting plan assumes available daylight
+- [error] missing dependency for album-arc-pressure: opening-contrast is missing: first work must establish contrast for the arc
+- [error] missing dependency for album-arc-pressure: midpoint-escalation is missing: middle works must raise pressure
+- [error] missing dependency for album-arc-pressure: closing-resolution is missing: final work must resolve selected pressures
+
+Blockers (2)
+- [error] blocker for live-solo-performance: studio-only-layering blocks this package: dense layered parts would block a solo live version
+- [error] blocker for album-arc-pressure: flat-track-order blocks this package: an order without contrast blocks the intended arc
+
+Flag conflicts (1)
+- [error] flag conflict for live-solo-performance: solo_performer conflicts with studio_layering: dense studio-only layering conflicts with a solo performance flag
+
+Missing slots (4)
+- [warning] missing slot for live-solo-performance: lead_performer is missing: live solo setup needs one compatible performer slot
+- [warning] missing slot for low-cost-music-video: location_plan is missing: low-cost production needs an explicit location plan slot
+- [warning] missing slot for album-arc-pressure: opening_work is missing: series arc needs one work assigned to the opening role
+- [warning] missing slot for album-arc-pressure: closing_work is missing: series arc needs one work assigned to the closing role
+
+Circular dependency placeholders (1)
+- [error] circular dependency for cycle-a: cycle-a directly requires cycle-b, and cycle-b directly requires cycle-a
+
+No dependency solver was run.

@@ -1,3 +1,4 @@
+#include "ArtForge/Deps/PressureModel.hpp"
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Prompting/PromptPackage.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
@@ -30,6 +31,11 @@ bool IsDescribeGraphCommand(int argumentCount, wchar_t** arguments)
 bool IsBuildPromptPackageCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 9 && std::wstring_view{arguments[1]} == L"--build-prompt-package";
+}
+
+bool IsWorldUpdateSampleCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--world-update-sample";
 }
 
 std::string WideToUtf8(std::wstring_view value)
@@ -91,6 +97,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(ArtForge::Prompting::SerializePromptPackageDebugDump(result));
         LocalFree(arguments);
         return result.ok ? 0 : 2;
+    }
+    if (arguments != nullptr && IsWorldUpdateSampleCommand(argumentCount, arguments)) {
+        WriteStdout(ArtForge::Deps::SampleWorldUpdateSummaryOutput());
+        LocalFree(arguments);
+        return 0;
     }
 
     if (arguments != nullptr) {

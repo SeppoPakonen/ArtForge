@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -104,6 +105,20 @@ struct PressureDiagnostic {
     std::string message;
 };
 
+struct WorldUpdateSummary {
+    std::size_t packageCount{};
+    std::size_t infoCount{};
+    std::size_t warningCount{};
+    std::size_t errorCount{};
+    std::vector<PressureDiagnostic> diagnostics;
+    std::vector<PressureDiagnostic> missingDependencies;
+    std::vector<PressureDiagnostic> blockers;
+    std::vector<PressureDiagnostic> flagConflicts;
+    std::vector<PressureDiagnostic> missingSlots;
+    std::vector<PressureDiagnostic> circularDependencies;
+    std::vector<std::string> packagesNeedingAttention;
+};
+
 struct PressurePackage {
     PressurePackageId id;
     PackageKind kind{};
@@ -137,6 +152,9 @@ std::string_view ToDisplayName(WorldUpdateItemKind itemKind);
 std::string FormatDiagnosticMessage(const PressureDiagnostic& diagnostic);
 std::vector<PressureDiagnostic> EvaluatePressureDiagnostics(const std::vector<PressurePackage>& packages);
 std::vector<std::string> SamplePressureDiagnosticOutput();
+WorldUpdateSummary BuildWorldUpdateSummary(const std::vector<PressurePackage>& packages);
+std::string FormatWorldUpdateSummary(const WorldUpdateSummary& summary);
+std::string SampleWorldUpdateSummaryOutput();
 
 FlagExample LyricsLowFrictionPolicyFlagExample();
 PressurePackage LiveSoloPerformanceRequirementExample();

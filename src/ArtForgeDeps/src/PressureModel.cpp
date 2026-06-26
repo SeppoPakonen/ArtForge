@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <set>
+#include <sstream>
 #include <string>
 
 namespace ArtForge::Deps {
@@ -55,6 +56,113 @@ void AddDiagnostic(
         packageId,
         std::move(message),
     });
+}
+
+void AddGroupedDiagnostic(WorldUpdateSummary& summary, const PressureDiagnostic& diagnostic)
+{
+    switch (diagnostic.category) {
+    case DiagnosticCategory::MissingDependency:
+        summary.missingDependencies.push_back(diagnostic);
+        break;
+    case DiagnosticCategory::MissingSlot:
+        summary.missingSlots.push_back(diagnostic);
+        break;
+    case DiagnosticCategory::Blocker:
+        summary.blockers.push_back(diagnostic);
+        break;
+    case DiagnosticCategory::FlagConflict:
+        summary.flagConflicts.push_back(diagnostic);
+        break;
+    case DiagnosticCategory::CircularDependency:
+        summary.circularDependencies.push_back(diagnostic);
+        break;
+    case DiagnosticCategory::VersionMismatch:
+    case DiagnosticCategory::UnresolvedPressure:
+        break;
+    }
+}
+
+void AppendDiagnosticGroup(
+    std::ostringstream& output,
+    std::string_view title,
+    const std::vector<PressureDiagnostic>& diagnostics)
+{
+    output << "\n" << title << " (" << diagnostics.size() << ")\n";
+    if (diagnostics.empty()) {
+        output << "- none\n";
+        return;
+    }
+
+    for (const auto& diagnostic : diagnostics) {
+        output << "- " << FormatDiagnosticMessage(diagnostic) << "\n";
+    }
+}
+
+std::vector<PressurePackage> SampleWorldUpdatePackages()
+{
+    PressurePackage liveRequirement = LiveSoloPerformanceRequirementExample();
+    liveRequirement.flags.push_back({"studio_layering", true});
+
+    PressurePackage lowCostVideo = LowCostMusicVideoRequirementExample();
+    PressurePackage albumArc = AlbumArcPressureRequirementExample();
+
+    PressurePackage studioOnlyLayering{
+        {"studio-only-layering"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    };
+
+    PressurePackage flatTrackOrder{
+        {"flat-track-order"},
+        PackageKind::ProjectFunction,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    };
+
+    PressurePackage cycleA{
+        {"cycle-a"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {{{"cycle-b"}, DependencyRelation::Requires, "sample direct cycle"}},
+        {},
+        {},
+    };
+
+    PressurePackage cycleB{
+        {"cycle-b"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {{{"cycle-a"}, DependencyRelation::Requires, "sample direct cycle"}},
+        {},
+        {},
+    };
+
+    return {
+        liveRequirement,
+        lowCostVideo,
+        albumArc,
+        studioOnlyLayering,
+        flatTrackOrder,
+        cycleA,
+        cycleB,
+    };
 }
 
 }
@@ -300,51 +408,74 @@ std::vector<PressureDiagnostic> EvaluatePressureDiagnostics(const std::vector<Pr
 
 std::vector<std::string> SamplePressureDiagnosticOutput()
 {
-    PressurePackage liveRequirement = LiveSoloPerformanceRequirementExample();
-    liveRequirement.flags.push_back({"studio_layering", true});
-    liveRequirement.requiredSlots.push_back({"lead_performer", "live solo setup needs one compatible performer slot"});
-
-    PressurePackage studioOnlyLayering{
-        {"studio-only-layering"},
-        PackageKind::CreativeRequirement,
-        {"1.0"},
-        {},
-        {},
-        {},
-        {},
-        {},
-        {},
-    };
-
-    PressurePackage cycleA{
-        {"cycle-a"},
-        PackageKind::CreativeRequirement,
-        {"1.0"},
-        {},
-        {},
-        {},
-        {{{"cycle-b"}, DependencyRelation::Requires, "sample direct cycle"}},
-        {},
-        {},
-    };
-
-    PressurePackage cycleB{
-        {"cycle-b"},
-        PackageKind::CreativeRequirement,
-        {"1.0"},
-        {},
-        {},
-        {},
-        {{{"cycle-a"}, DependencyRelation::Requires, "sample direct cycle"}},
-        {},
-        {},
-    };
-
     std::vector<std::string> formatted;
-    for (const auto& diagnostic : EvaluatePressureDiagnostics({liveRequirement, studioOnlyLayering, cycleA, cycleB})) {
+    for (const auto& diagnostic : EvaluatePressureDiagnostics(SampleWorldUpdatePackages())) {
         formatted.push_back(FormatDiagnosticMessage(diagnostic));
     }
     return formatted;
+}
+
+WorldUpdateSummary BuildWorldUpdateSummary(const std::vector<PressurePackage>& packages)
+{
+    WorldUpdateSummary summary;
+    summary.packageCount = packages.size();
+    summary.diagnostics = EvaluatePressureDiagnostics(packages);
+
+    std::set<std::string> packagesNeedingAttention;
+    for (const auto& diagnostic : summary.diagnostics) {
+        switch (diagnostic.severity) {
+        case DiagnosticSeverity::Info:
+            ++summary.infoCount;
+            break;
+        case DiagnosticSeverity::Warning:
+            ++summary.warningCount;
+            break;
+        case DiagnosticSeverity::Error:
+            ++summary.errorCount;
+            break;
+        }
+
+        AddGroupedDiagnostic(summary, diagnostic);
+        if (!diagnostic.packageId.value.empty()) {
+            packagesNeedingAttention.insert(diagnostic.packageId.value);
+        }
+    }
+
+    summary.packagesNeedingAttention.assign(packagesNeedingAttention.begin(), packagesNeedingAttention.end());
+    return summary;
+}
+
+std::string FormatWorldUpdateSummary(const WorldUpdateSummary& summary)
+{
+    std::ostringstream output;
+    output << "ArtForge World Update Summary\n";
+    output << "Packages: " << summary.packageCount << "\n";
+    output << "Diagnostics: " << summary.errorCount << " error, "
+           << summary.warningCount << " warning, "
+           << summary.infoCount << " info\n";
+
+    output << "\nPackages needing attention (" << summary.packagesNeedingAttention.size() << ")\n";
+    if (summary.packagesNeedingAttention.empty()) {
+        output << "- none\n";
+    } else {
+        for (const auto& packageId : summary.packagesNeedingAttention) {
+            output << "- " << packageId << "\n";
+        }
+    }
+
+    AppendDiagnosticGroup(output, "Missing dependencies", summary.missingDependencies);
+    AppendDiagnosticGroup(output, "Blockers", summary.blockers);
+    AppendDiagnosticGroup(output, "Flag conflicts", summary.flagConflicts);
+    AppendDiagnosticGroup(output, "Missing slots", summary.missingSlots);
+    AppendDiagnosticGroup(output, "Circular dependency placeholders", summary.circularDependencies);
+
+    output << "\nNo dependency solver was run.\n";
+    return output.str();
+}
+
+std::string SampleWorldUpdateSummaryOutput()
+{
+    return FormatWorldUpdateSummary(BuildWorldUpdateSummary(SampleWorldUpdatePackages()));
 }
 
 FlagExample LyricsLowFrictionPolicyFlagExample()
