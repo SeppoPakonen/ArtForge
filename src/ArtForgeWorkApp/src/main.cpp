@@ -1,6 +1,7 @@
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
+#include "ArtForge/Services/EditCommandService.hpp"
 #include "ArtForge/Services/PromptCommandService.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
 
@@ -36,6 +37,11 @@ bool IsDescribeWorkDomainCommand(int argumentCount, wchar_t** arguments)
 bool IsBuildSelectedPromptCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 6 && std::wstring_view{arguments[1]} == L"--build-selected-prompt";
+}
+
+bool IsDescribeEditCommandFoundationCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-edit-command-foundation";
 }
 
 std::string WorkspaceLabel(std::string_view workDomain)
@@ -155,6 +161,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
     }
     if (arguments != nullptr && IsBuildSelectedPromptCommand(argumentCount, arguments)) {
         const auto result = BuildSelectedPromptDebugDump(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return 0;
+    }
+    if (arguments != nullptr && IsDescribeEditCommandFoundationCommand(argumentCount, arguments)) {
+        const auto result = ArtForge::Services::DescribeEditCommandSmokeExamples();
         WriteStdout(result);
         LocalFree(arguments);
         return 0;

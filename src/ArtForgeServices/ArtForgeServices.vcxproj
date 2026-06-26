@@ -14,10 +14,12 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClInclude Include="include\ArtForge\Services\EditCommandService.hpp" />
     <ClInclude Include="include\ArtForge\Services\PromptCommandService.hpp" />
     <ClInclude Include="include\ArtForge\Services\ServiceResult.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\EditCommandService.cpp" />
     <ClCompile Include="src\PromptCommandService.cpp" />
     <ClCompile Include="src\ServiceResult.cpp" />
   </ItemGroup>
