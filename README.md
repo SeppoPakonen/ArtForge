@@ -153,6 +153,9 @@ schema, verify referenced ids, reject unknown destructive operations, create a
 history item, and ask the user to accept or reject suggested changes. Prompt
 package generation maps to the history operation `prompt package generated`;
 validated AI result import maps to `AI JSON result imported`.
+The concrete prompt package schema is documented in
+[docs/prompting/prompt-package-schema.md](docs/prompting/prompt-package-schema.md),
+with a small layered example under `examples/prompt-package/work-repair/`.
 
 ## Scope shell model
 

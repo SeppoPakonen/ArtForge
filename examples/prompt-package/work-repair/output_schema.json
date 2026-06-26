@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "artforge.prompt.output.schema.sample",
+  "title": "ArtForge Sample Prompt Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "suggestions",
+    "critiqueItems",
+    "replacementCandidates",
+    "ruleHits",
+    "ruleViolations",
+    "unresolvedQuestions",
+    "confidence",
+    "rationale"
+  ],
+  "properties": {
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "summary", "targetId"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "summary": { "type": "string" },
+          "targetId": { "type": "string" }
+        }
+      }
+    },
+    "critiqueItems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reviewItem" }
+    },
+    "replacementCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "targetId", "replacementText"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "targetId": { "type": "string" },
+          "replacementText": { "type": "string" }
+        }
+      }
+    },
+    "ruleHits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reviewItem" }
+    },
+    "ruleViolations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reviewItem" }
+    },
+    "unresolvedQuestions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reviewItem" }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "rationale": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "reviewItem": {
+      "type": "object",
+      "required": ["id", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "summary": { "type": "string" },
+        "targetId": { "type": "string" }
+      }
+    }
+  }
+}

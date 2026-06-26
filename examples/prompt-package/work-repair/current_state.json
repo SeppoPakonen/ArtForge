@@ -1,0 +1,33 @@
+{
+  "format": "artforge.prompt.currentState",
+  "schemaVersion": 1,
+  "scope": {
+    "type": "work",
+    "id": "work.opening-song",
+    "displayName": "Opening Song",
+    "path": "../../minimal/sample.afwork.json"
+  },
+  "focus": {
+    "kind": "fragment",
+    "id": "fragment.opening.line-001",
+    "label": "opening lyric line",
+    "text": "I keep the map folded where the light runs out"
+  },
+  "knownReferences": [
+    {
+      "id": "work.opening-song",
+      "kind": "work",
+      "path": "../../minimal/sample.afwork.json"
+    },
+    {
+      "id": "series.first-project",
+      "kind": "series",
+      "path": "../../minimal/sample.afseries.json"
+    }
+  ],
+  "constraints": [
+    "plain-spoken voice",
+    "singable phrase length",
+    "no automatic state changes"
+  ]
+}
