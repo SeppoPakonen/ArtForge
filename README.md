@@ -21,6 +21,9 @@ single-file product format is intentionally out of scope for this phase.
 The initial GUI direction is native Win32 API plus Windows Common Controls, with
 Direct2D reserved for later custom graph, canvas, pressure-map, and mind-map
 views. See [docs/architecture/002-gui-stack.md](docs/architecture/002-gui-stack.md).
+Views must render UI-neutral presentation models through presentation adapters;
+they must not interpret domain models directly. See
+[docs/architecture/004-presentation-adapter-architecture.md](docs/architecture/004-presentation-adapter-architecture.md).
 The shared `ArtForgeUiWin32` module now provides the minimal native shell
 foundation used by the scope applications.
 
