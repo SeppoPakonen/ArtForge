@@ -70,7 +70,87 @@ PropertyListModel BuildBaseProperties(const ArtForge::Files::WorkScopeFileLoadRe
     return properties;
 }
 
-void AddSelectionProperties(PropertyListModel& properties, const SelectionModel& selection)
+void AddLyricsSelectionProperties(
+    PropertyListModel& properties,
+    const std::filesystem::path& workPath,
+    const SelectionModel& selection)
+{
+    const auto model = ArtForge::Files::LoadLyricsWorkViewModel(workPath);
+    const auto index = selection.itemIndex >= 0 ? static_cast<std::size_t>(selection.itemIndex) : model.lyricLines.size();
+    if (index >= model.lyricLines.size()) {
+        return;
+    }
+
+    const auto& line = model.lyricLines[index];
+    AddProperty(properties, "Domain", "lyrics");
+    AddProperty(properties, "Section", line.sectionId);
+    AddProperty(properties, "Time", line.timeRange);
+    AddProperty(properties, "Line text", line.text);
+    AddProperty(properties, "Line", line.id + " / " + std::to_string(selection.itemIndex));
+}
+
+void AddVisualSelectionProperties(
+    PropertyListModel& properties,
+    const std::filesystem::path& workPath,
+    const SelectionModel& selection)
+{
+    const auto model = ArtForge::Files::LoadVisualArtWorkViewModel(workPath);
+    const auto index = selection.itemIndex >= 0 ? static_cast<std::size_t>(selection.itemIndex) : model.viewerLayers.size() + model.paintLayers.size();
+
+    const ArtForge::Files::VisualArtLayerView* layer = nullptr;
+    if (index < model.viewerLayers.size()) {
+        layer = &model.viewerLayers[index];
+    } else {
+        const auto paintIndex = index - model.viewerLayers.size();
+        if (paintIndex < model.paintLayers.size()) {
+            layer = &model.paintLayers[paintIndex];
+        }
+    }
+
+    if (layer == nullptr) {
+        return;
+    }
+
+    AddProperty(properties, "Domain", "visualArt");
+    AddProperty(properties, "Layer type", layer->layerType);
+    AddProperty(properties, "Label", layer->label);
+    AddProperty(properties, "Intent", layer->intent);
+    AddProperty(properties, "Priority", layer->priority.empty() ? "(none)" : layer->priority);
+    AddProperty(properties, "Status", layer->status.empty() ? "(none)" : layer->status);
+}
+
+void AddScriptSelectionProperties(
+    PropertyListModel& properties,
+    const std::filesystem::path& workPath,
+    const SelectionModel& selection)
+{
+    const auto model = ArtForge::Files::LoadScriptStoryboardWorkViewModel(workPath);
+    const auto rowIndex = selection.itemIndex >= 0 ? static_cast<std::size_t>(selection.itemIndex) : model.scenes.size() + model.blocks.size();
+
+    if (rowIndex < model.scenes.size()) {
+        const auto& scene = model.scenes[rowIndex];
+        AddProperty(properties, "Domain", "scriptStoryboard");
+        AddProperty(properties, "Scene", scene.id);
+        AddProperty(properties, "Time range", scene.timeRange);
+        AddProperty(properties, "Speaker / type", "scene");
+        AddProperty(properties, "Summary", scene.title);
+        return;
+    }
+
+    const auto blockIndex = rowIndex - model.scenes.size();
+    if (blockIndex >= model.blocks.size()) {
+        return;
+    }
+
+    const auto& block = model.blocks[blockIndex];
+    AddProperty(properties, "Domain", "scriptStoryboard");
+    AddProperty(properties, "Scene / block", block.sceneId + " / " + block.id);
+    AddProperty(properties, "Time range", block.timeRange);
+    AddProperty(properties, "Speaker / type", block.speaker.empty() ? block.kind : block.speaker + " / " + block.kind);
+    AddProperty(properties, "Dialogue / action", block.text);
+}
+
+void AddSelectionProperties(PropertyListModel& properties, const std::filesystem::path& workPath, const SelectionModel& selection)
 {
     if (!selection.hasSelection) {
         AddProperty(properties, "Selection", "(none)");
@@ -82,6 +162,14 @@ void AddSelectionProperties(PropertyListModel& properties, const SelectionModel&
     AddProperty(properties, "Selected item id", selection.itemId);
     AddProperty(properties, "Selected index", std::to_string(selection.itemIndex));
     AddProperty(properties, "Selected item", selection.displayLabel);
+
+    if (selection.domain == "lyrics") {
+        AddLyricsSelectionProperties(properties, workPath, selection);
+    } else if (selection.domain == "visualArt") {
+        AddVisualSelectionProperties(properties, workPath, selection);
+    } else if (selection.domain == "scriptStoryboard") {
+        AddScriptSelectionProperties(properties, workPath, selection);
+    }
 }
 
 TableModel BuildUnsupportedTable(std::string reason)
@@ -143,7 +231,7 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(
     model.navigation = BuildNavigation(result, workPath);
     model.properties = BuildBaseProperties(result, workPath);
     model.selection = selection;
-    AddSelectionProperties(model.properties, model.selection);
+    AddSelectionProperties(model.properties, workPath, model.selection);
 
     if (!result.status.ok) {
         model.domainTable = BuildUnsupportedTable(model.status.diagnostics.empty() ? "Work file load failed" : model.status.diagnostics.front());

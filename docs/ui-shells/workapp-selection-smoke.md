@@ -8,13 +8,12 @@ Manual smoke coverage:
 
 - `ArtForgeWorkApp.exe examples/work-domains/lyrics.afwork.json`: select the
   first lyric row. The property panel should show selected domain `lyrics`,
-  item type `lyricLine`, a line id, index `0`, and the line text as the
-  selected item label.
+  item type `lyricLine`, section, time, line text, line id, and index `0`.
 - `ArtForgeWorkApp.exe examples/work-domains/visual-art.afwork.json`: select
   the first layer row. The property panel should show selected domain
-  `visualArt`, item type `visualLayer`, a layer id, index `0`, and the layer
-  label.
+  `visualArt`, item type `visualLayer`, layer type, label, intent, priority,
+  and status.
 - `ArtForgeWorkApp.exe examples/work-domains/script-storyboard.afwork.json`:
   select the first block or scene row. The property panel should show selected
-  domain `scriptStoryboard`, item type `scriptScene` or `scriptBlock`, the item
-  id, row index, and a display label.
+  domain `scriptStoryboard`, item type `scriptScene` or `scriptBlock`, scene or
+  block id, time range, speaker/type, and a summary.
