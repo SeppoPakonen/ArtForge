@@ -13,8 +13,18 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <ItemGroup><ClInclude Include="include\ArtForge\Services\ServiceResult.hpp" /></ItemGroup>
-  <ItemGroup><ClCompile Include="src\ServiceResult.cpp" /></ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\ArtForge\Services\PromptCommandService.hpp" />
+    <ClInclude Include="include\ArtForge\Services\ServiceResult.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\PromptCommandService.cpp" />
+    <ClCompile Include="src\ServiceResult.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ArtForgeFiles\ArtForgeFiles.vcxproj"><Project>{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}</Project></ProjectReference>
+    <ProjectReference Include="..\ArtForgePrompting\ArtForgePrompting.vcxproj"><Project>{59B1783A-6071-45E8-B322-F178F326386B}</Project></ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

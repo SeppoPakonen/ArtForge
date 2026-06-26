@@ -1,7 +1,6 @@
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
-#include "ArtForge/History/EventLog.hpp"
-#include "ArtForge/Prompting/PromptPackage.hpp"
+#include "ArtForge/Services/PromptCommandService.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
 
 #include <shellapi.h>
@@ -9,7 +8,6 @@
 
 #include <filesystem>
 #include <sstream>
-#include <vector>
 #include <string_view>
 
 namespace {
@@ -111,53 +109,19 @@ std::string WideToUtf8(std::wstring_view value)
 std::string BuildSelectedPromptDebugDump(wchar_t** arguments)
 {
     const std::filesystem::path workPath{arguments[2]};
-    const auto work = ArtForge::Files::LoadWorkScopeFile(workPath);
     const auto itemType = WideToUtf8(arguments[3]);
     const auto itemIndex = std::stoi(std::wstring{arguments[4]});
     const auto requestedOperation = WideToUtf8(arguments[5]);
-    const auto selectedItemId = [&]() {
-        const auto index = itemIndex >= 0 ? static_cast<std::size_t>(itemIndex) : std::size_t{};
-        if (work.file.workDomain == "lyrics") {
-            const auto model = ArtForge::Files::LoadLyricsWorkViewModel(workPath);
-            return index < model.lyricLines.size() ? model.lyricLines[index].id : std::string{};
-        }
-        if (work.file.workDomain == "visualArt") {
-            const auto model = ArtForge::Files::LoadVisualArtWorkViewModel(workPath);
-            std::vector<ArtForge::Files::VisualArtLayerView> layers = model.viewerLayers;
-            layers.insert(layers.end(), model.paintLayers.begin(), model.paintLayers.end());
-            return index < layers.size() ? layers[index].id : std::string{};
-        }
-        if (work.file.workDomain == "scriptStoryboard") {
-            const auto model = ArtForge::Files::LoadScriptStoryboardWorkViewModel(workPath);
-            return index < model.blocks.size() ? model.blocks[index].id : std::string{};
-        }
-        return std::string{};
-    }();
 
-    ArtForge::Prompting::SelectedDomainItemPromptRequest request{
+    const auto result = ArtForge::Services::BuildSelectedItemPromptCommand({
         workPath,
-        work.file.id,
-        work.file.workDomain,
+        "auto",
         itemType,
-        selectedItemId,
+        "",
         itemIndex,
         requestedOperation,
-    };
-    const auto result = ArtForge::Prompting::BuildPromptPackageFromSelectedDomainItem(request);
-    const auto historyStatus = ArtForge::History::RecordDomainItemHistoryEvent(
-        workPath,
-        ArtForge::History::HistoryOperation::PromptRequested,
-        {
-            work.file.id,
-            workPath.generic_string(),
-            work.file.workDomain,
-            itemType,
-            selectedItemId,
-            itemIndex,
-            "Prompt requested: " + requestedOperation,
-        });
-    (void)historyStatus;
-    return ArtForge::Prompting::SerializePromptPackageDebugDump(result);
+    });
+    return result.promptDebugDump;
 }
 
 }
