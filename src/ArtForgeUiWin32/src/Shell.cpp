@@ -2,6 +2,7 @@
 
 #include "ArtForge/UiWin32/CommonControls.hpp"
 #include "ArtForge/UiWin32/PaneLayout.hpp"
+#include "ArtForge/UiWin32/PropertyPanel.hpp"
 
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
@@ -34,7 +35,7 @@ struct ScopeShellState {
     HWND navigationTree{};
     HWND summaryControl{};
     TabControl detailTabs;
-    ListViewReport detailList;
+    PropertyPanel propertyPanel;
     HWND statusBar{};
 };
 
@@ -385,22 +386,24 @@ std::wstring WorkDomainWorkspaceText(std::string_view workDomain)
     return L"Unsupported work domain\r\n\r\nDomain value is not supported by the placeholder workspace yet.";
 }
 
-void PopulateDetailList(ScopeShellState& state)
+void PopulatePropertyPanel(ScopeShellState& state)
 {
     const auto pathText = state.openedPath.empty() ? std::wstring{L"(none)"} : state.openedPath;
 
-    state.detailList.ClearRows();
-    state.detailList.AddRow({L"Application", state.descriptor.applicationName});
-    state.detailList.AddRow({L"Scope", ArtForge::Core::ToDisplayName(state.descriptor.scope)});
-    state.detailList.AddRow({L"Path", pathText});
-    state.detailList.AddRow({L"Load status", state.loadStatusText});
-    state.detailList.AddRow({L"Load detail", state.loadDetailText});
+    state.propertyPanel.Clear();
+    state.propertyPanel.AddGroup(L"Scope");
+    state.propertyPanel.AddProperty(L"Application", state.descriptor.applicationName);
+    state.propertyPanel.AddProperty(L"Scope", ArtForge::Core::ToDisplayName(state.descriptor.scope));
+    state.propertyPanel.AddProperty(L"Path", pathText);
+    state.propertyPanel.AddProperty(L"Load status", state.loadStatusText);
+    state.propertyPanel.AddProperty(L"Load detail", state.loadDetailText);
 
     if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
         const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
         const auto domain = result.file.workDomain.empty() ? std::wstring{L"(unspecified)"} : Utf8ToWide(result.file.workDomain);
-        state.detailList.AddRow({L"Work domain", domain});
-        state.detailList.AddRow({L"Workspace", WorkDomainWorkspaceText(result.file.workDomain)});
+        state.propertyPanel.AddGroup(L"Work domain");
+        state.propertyPanel.AddProperty(L"Work domain", domain);
+        state.propertyPanel.AddProperty(L"Workspace", WorkDomainWorkspaceText(result.file.workDomain));
     }
 }
 
@@ -439,7 +442,7 @@ void LayoutChildren(HWND window)
         rectangles);
 
     const auto detailArea = state->detailTabs.DisplayArea();
-    state->detailList.Move(detailArea);
+    state->propertyPanel.Move(detailArea);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -484,10 +487,8 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         state->detailTabs.AddTab(0, L"Details");
         state->detailTabs.AddTab(1, L"Actions");
 
-        state->detailList.Create(window, DetailListId, create->hInstance);
-        state->detailList.AddColumn(0, L"Name", 96);
-        state->detailList.AddColumn(1, L"Value", 320);
-        PopulateDetailList(*state);
+        state->propertyPanel.Create(window, DetailListId, create->hInstance);
+        PopulatePropertyPanel(*state);
 
         state->statusBar = CreateWindowExW(
             0,

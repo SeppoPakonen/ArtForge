@@ -16,11 +16,13 @@
   <ItemGroup>
     <ClInclude Include="include\ArtForge\UiWin32\CommonControls.hpp" />
     <ClInclude Include="include\ArtForge\UiWin32\PaneLayout.hpp" />
+    <ClInclude Include="include\ArtForge\UiWin32\PropertyPanel.hpp" />
     <ClInclude Include="include\ArtForge\UiWin32\Shell.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\CommonControls.cpp" />
     <ClCompile Include="src\PaneLayout.cpp" />
+    <ClCompile Include="src\PropertyPanel.cpp" />
     <ClCompile Include="src\Shell.cpp" />
   </ItemGroup>
   <ItemGroup>
