@@ -165,6 +165,9 @@ std::optional<int> ReadIntField(std::string_view json, std::string_view key)
     }
 
     auto endPosition = *valuePosition;
+    if (endPosition < json.size() && json[endPosition] == '-') {
+        ++endPosition;
+    }
     while (endPosition < json.size() && std::isdigit(static_cast<unsigned char>(json[endPosition])) != 0) {
         ++endPosition;
     }
@@ -289,6 +292,25 @@ std::optional<DomainItemHistoryMetadata> ReadDomainItemMetadataField(std::string
         ReadStringField(*objectJson, "item_id").value_or(""),
         ReadIntField(*objectJson, "item_index").value_or(0),
         ReadStringField(*objectJson, "operation_summary").value_or(""),
+    };
+}
+
+std::optional<PresentationCommandHistoryMetadata> ReadPresentationCommandMetadataField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "presentation_command", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return PresentationCommandHistoryMetadata{
+        ReadStringField(*objectJson, "work_id").value_or(""),
+        ReadStringField(*objectJson, "work_path").value_or(""),
+        ReadStringField(*objectJson, "domain").value_or(""),
+        ReadStringField(*objectJson, "item_type").value_or(""),
+        ReadStringField(*objectJson, "item_id").value_or(""),
+        ReadIntField(*objectJson, "item_index").value_or(0),
+        ReadStringField(*objectJson, "command_name").value_or(""),
+        ReadStringField(*objectJson, "result_status").value_or(""),
     };
 }
 
@@ -445,6 +467,7 @@ std::optional<StoredHistoryEvent> ParseHistoryEventLine(std::string_view line, s
     event.snapshot = ReadSnapshotMetadataField(line);
     event.branch = ReadBranchPlaceholderField(line);
     event.domainItem = ReadDomainItemMetadataField(line);
+    event.presentationCommand = ReadPresentationCommandMetadataField(line);
 
     const auto actor = ParseActor(ReadStringField(line, "actor").value_or(""));
     if (!actor) {
@@ -520,6 +543,20 @@ void AppendDomainItemMetadata(std::ostringstream& output, const DomainItemHistor
     output << "\"item_id\":" << Quote(metadata.itemId) << ",";
     output << "\"item_index\":" << metadata.itemIndex << ",";
     output << "\"operation_summary\":" << Quote(metadata.operationSummary);
+    output << "}";
+}
+
+void AppendPresentationCommandMetadata(std::ostringstream& output, const PresentationCommandHistoryMetadata& metadata)
+{
+    output << ",\"presentation_command\":{";
+    output << "\"work_id\":" << Quote(metadata.workId) << ",";
+    output << "\"work_path\":" << Quote(metadata.workPath) << ",";
+    output << "\"domain\":" << Quote(metadata.domain) << ",";
+    output << "\"item_type\":" << Quote(metadata.itemType) << ",";
+    output << "\"item_id\":" << Quote(metadata.itemId) << ",";
+    output << "\"item_index\":" << metadata.itemIndex << ",";
+    output << "\"command_name\":" << Quote(metadata.commandName) << ",";
+    output << "\"result_status\":" << Quote(metadata.resultStatus);
     output << "}";
 }
 
@@ -620,6 +657,12 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "repair alternatives requested";
     case HistoryOperation::ItemFlaggedForReview:
         return "item flagged for review";
+    case HistoryOperation::PresentationSelectionChanged:
+        return "presentation selection changed";
+    case HistoryOperation::PromptPreviewRequested:
+        return "prompt preview requested";
+    case HistoryOperation::SelectedItemPromptPackageBuilt:
+        return "selected item prompt package built";
     }
 
     return "unknown";
@@ -757,6 +800,9 @@ std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event)
     if (event.domainItem) {
         AppendDomainItemMetadata(output, *event.domainItem);
     }
+    if (event.presentationCommand) {
+        AppendPresentationCommandMetadata(output, *event.presentationCommand);
+    }
     output << "}";
     return output.str();
 }
@@ -889,6 +935,44 @@ HistoryLogStatus RecordDomainItemHistoryEvent(
         return AppendHistoryEventJsonLine(
             DefaultOperationHistoryPath(scopeFilePath),
             CreateDomainItemHistoryEvent(operation, metadata));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
+}
+
+StoredHistoryEvent CreatePresentationCommandHistoryEvent(
+    HistoryOperation operation,
+    const PresentationCommandHistoryMetadata& metadata)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    const auto operationName = ToDisplayName(operation);
+    const auto identity = metadata.workPath + metadata.domain + metadata.itemType + metadata.itemId + std::to_string(metadata.itemIndex) + metadata.commandName + metadata.resultStatus + std::string{operationName};
+
+    StoredHistoryEvent event;
+    event.id = "hist.presentation." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(identity));
+    event.timestamp = timestamp;
+    event.actor = HistoryActor::User;
+    event.scope = HistoryScope::Work;
+    event.operation = operation;
+    event.summary = std::string{operationName} + ": " + metadata.commandName + " -> " + metadata.resultStatus;
+    if (!metadata.workPath.empty()) {
+        event.affectedFiles = {metadata.workPath};
+    }
+    event.presentationCommand = metadata;
+    return event;
+}
+
+HistoryLogStatus RecordPresentationCommandHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const PresentationCommandHistoryMetadata& metadata)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreatePresentationCommandHistoryEvent(operation, metadata));
     } catch (const std::exception& exception) {
         return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
     } catch (...) {

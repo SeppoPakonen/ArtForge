@@ -41,7 +41,10 @@ enum class HistoryOperation {
     PromptRequested,
     CritiqueRequested,
     RepairAlternativesRequested,
-    ItemFlaggedForReview
+    ItemFlaggedForReview,
+    PresentationSelectionChanged,
+    PromptPreviewRequested,
+    SelectedItemPromptPackageBuilt
 };
 
 struct HistoryEventId {
@@ -78,6 +81,17 @@ struct DomainItemHistoryMetadata {
     std::string itemId;
     int itemIndex{};
     std::string operationSummary;
+};
+
+struct PresentationCommandHistoryMetadata {
+    std::string workId;
+    std::string workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{};
+    std::string commandName;
+    std::string resultStatus;
 };
 
 struct HistoryItemFields {
@@ -130,6 +144,7 @@ struct StoredHistoryEvent {
     std::optional<HistorySnapshotMetadata> snapshot;
     std::optional<HistoryBranchPlaceholder> branch;
     std::optional<DomainItemHistoryMetadata> domainItem;
+    std::optional<PresentationCommandHistoryMetadata> presentationCommand;
 };
 
 struct HistoryLogIssue {
@@ -187,12 +202,20 @@ HistoryLogStatus RecordDomainItemHistoryEvent(
     HistoryOperation operation,
     const DomainItemHistoryMetadata& metadata);
 
+StoredHistoryEvent CreatePresentationCommandHistoryEvent(
+    HistoryOperation operation,
+    const PresentationCommandHistoryMetadata& metadata);
+HistoryLogStatus RecordPresentationCommandHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const PresentationCommandHistoryMetadata& metadata);
+
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 18> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 21> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -211,6 +234,9 @@ constexpr std::array<HistoryOperation, 18> ExampleHistoryOperations{{
     HistoryOperation::CritiqueRequested,
     HistoryOperation::RepairAlternativesRequested,
     HistoryOperation::ItemFlaggedForReview,
+    HistoryOperation::PresentationSelectionChanged,
+    HistoryOperation::PromptPreviewRequested,
+    HistoryOperation::SelectedItemPromptPackageBuilt,
 }};
 
 }

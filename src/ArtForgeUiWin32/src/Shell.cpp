@@ -194,6 +194,33 @@ void RecordFileOperation(
     (void)status;
 }
 
+void RecordPresentationCommand(
+    const ScopeShellState& state,
+    ArtForge::History::HistoryOperation operation,
+    std::string commandName,
+    std::string resultStatus)
+{
+    if (state.openedPath.empty()) {
+        return;
+    }
+
+    const auto work = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
+    const auto status = ArtForge::History::RecordPresentationCommandHistoryEvent(
+        std::filesystem::path{state.openedPath},
+        operation,
+        {
+            work.file.id,
+            std::filesystem::path{state.openedPath}.generic_string(),
+            state.workSelection.domain,
+            state.workSelection.itemType,
+            state.workSelection.itemId,
+            state.workSelection.itemIndex,
+            std::move(commandName),
+            std::move(resultStatus),
+        });
+    (void)status;
+}
+
 void PopulateSolutionNavigation(HWND tree, const std::filesystem::path& path)
 {
     const auto graph = ArtForge::Files::LoadSolutionProjectGraph(path);
@@ -441,6 +468,18 @@ void HandleWorkDomainSelection(ScopeShellState& state, int rowIndex)
         ? ArtForge::Presentation::SelectWorkAppTableRow(std::filesystem::path{state.openedPath}, rowIndex)
         : ArtForge::Presentation::ClearWorkAppSelection(std::filesystem::path{state.openedPath});
     PopulatePropertyPanel(state);
+    RecordPresentationCommand(
+        state,
+        ArtForge::History::HistoryOperation::PresentationSelectionChanged,
+        "selection-changed",
+        state.workSelection.hasSelection ? "selected" : "cleared");
+    if (state.workSelection.hasSelection) {
+        RecordPresentationCommand(
+            state,
+            ArtForge::History::HistoryOperation::PromptPreviewRequested,
+            "prompt-preview",
+            "preview-ready");
+    }
 }
 
 HMENU CreateShellMenu()

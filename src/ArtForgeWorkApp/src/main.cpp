@@ -1,5 +1,6 @@
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
+#include "ArtForge/History/EventLog.hpp"
 #include "ArtForge/Services/PromptCommandService.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
 
@@ -121,6 +122,21 @@ std::string BuildSelectedPromptDebugDump(wchar_t** arguments)
         itemIndex,
         requestedOperation,
     });
+    const auto work = ArtForge::Files::LoadWorkScopeFile(workPath);
+    const auto historyStatus = ArtForge::History::RecordPresentationCommandHistoryEvent(
+        workPath,
+        ArtForge::History::HistoryOperation::SelectedItemPromptPackageBuilt,
+        {
+            work.file.id,
+            workPath.generic_string(),
+            work.file.workDomain,
+            itemType,
+            "",
+            itemIndex,
+            "build-selected-item-prompt",
+            result.command.status.ok ? "OK" : "failed",
+        });
+    (void)historyStatus;
     return result.promptDebugDump;
 }
 
