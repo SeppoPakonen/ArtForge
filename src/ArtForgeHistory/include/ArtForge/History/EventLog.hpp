@@ -1,7 +1,10 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace ArtForge::History {
 
@@ -79,6 +82,35 @@ struct HistoryEvent {
     RelatedAiIds relatedAiIds;
 };
 
+struct StoredHistoryEvent {
+    std::string id;
+    std::string timestamp;
+    HistoryActor actor{HistoryActor::User};
+    HistoryScope scope{HistoryScope::Work};
+    HistoryOperation operation{HistoryOperation::UserTextEdit};
+    std::string summary;
+    std::vector<std::string> affectedFiles;
+    std::string beforeReference;
+    std::string afterReference;
+    std::string promptPackageId;
+    std::string aiResultId;
+};
+
+struct HistoryLogIssue {
+    std::size_t lineNumber{};
+    std::string message;
+};
+
+struct HistoryLogStatus {
+    bool ok{};
+    std::vector<HistoryLogIssue> issues;
+};
+
+struct HistoryLogReadResult {
+    HistoryLogStatus status;
+    std::vector<StoredHistoryEvent> events;
+};
+
 std::string_view PersistentEventLogName();
 std::string_view ToDisplayName(HistoryActor actor);
 std::string_view ToDisplayName(HistoryScope scope);
@@ -88,6 +120,12 @@ HistoryStorageConvention DefaultStorageConvention();
 HistoryItemFields PlannedHistoryItemFields();
 HistoryEvent SampleUserTextEditEvent();
 std::string_view SampleUserTextEditJsonLine();
+
+std::string SerializeHistoryEventJsonLine(const HistoryEvent& event);
+std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event);
+HistoryLogStatus AppendHistoryEventJsonLine(const std::filesystem::path& path, const HistoryEvent& event);
+HistoryLogStatus AppendHistoryEventJsonLine(const std::filesystem::path& path, const StoredHistoryEvent& event);
+HistoryLogReadResult ReadHistoryEventJsonLines(const std::filesystem::path& path);
 
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();

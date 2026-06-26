@@ -66,6 +66,9 @@ The persistent history JSON Lines format is documented in
 `ArtForgeFiles` provides minimal load/save helpers for the solution, artist,
 series, and work scope JSON files. These helpers check that child references are
 relative paths, but they do not build a full project graph.
+`ArtForgeHistory` provides minimal append/read helpers for `.afhistory.jsonl`
+events. Malformed lines are reported as diagnostics while valid events remain
+readable; full undo/redo restoration is still out of scope.
 
 One expected project folder shape is:
 
