@@ -1,0 +1,19 @@
+{
+  "format": "artforge.work",
+  "schemaVersion": 1,
+  "id": "work.unsupported.sample",
+  "scope": "work",
+  "workKind": "experiment",
+  "workDomain": "interactiveInstallation",
+  "displayName": "Unsupported Domain Sample",
+  "series": {
+    "id": "series.sample",
+    "path": "../minimal/sample.afseries.json"
+  },
+  "sources": [],
+  "history": {
+    "path": "history.afhistory.jsonl"
+  },
+  "metadata": {},
+  "domain": {}
+}

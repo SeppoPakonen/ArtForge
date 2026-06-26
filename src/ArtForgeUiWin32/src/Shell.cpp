@@ -356,12 +356,39 @@ std::wstring SummaryText(const ScopeShellState& state)
     summary += state.loadStatusText;
     summary += L"\r\nLoad detail: ";
     summary += state.loadDetailText;
+    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
+        const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
+        summary += L"\r\nWork domain: ";
+        summary += result.file.workDomain.empty() ? L"(unspecified)" : Utf8ToWide(result.file.workDomain);
+    }
     summary += L"\r\nArtForge bootstrap OK";
     return summary;
 }
 
+std::wstring WorkDomainWorkspaceText(std::string_view workDomain)
+{
+    if (workDomain == "lyrics") {
+        return L"Lyrics/music workspace\r\n\r\nTechnical base placeholder\r\nLyric line table placeholder\r\nRule analytics placeholder";
+    }
+    if (workDomain == "visualArt") {
+        return L"Visual art workspace\r\n\r\nViewer layers placeholder\r\nPaint layers placeholder\r\nLayer analytics placeholder";
+    }
+    if (workDomain == "scriptStoryboard") {
+        return L"Script/storyboard workspace\r\n\r\nScene and block list placeholder\r\nDialogue/action placeholder\r\nStoryboard visualization placeholder";
+    }
+    if (workDomain.empty()) {
+        return L"Unsupported work domain\r\n\r\nNo workDomain field was found in this work file.";
+    }
+    return L"Unsupported work domain\r\n\r\nDomain value is not supported by the placeholder workspace yet.";
+}
+
 std::wstring DetailPaneText(const ScopeShellState& state)
 {
+    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
+        const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
+        return WorkDomainWorkspaceText(result.file.workDomain);
+    }
+
     std::wstring text;
     text += L"Properties and actions\r\n";
     text += L"\r\nScope: ";

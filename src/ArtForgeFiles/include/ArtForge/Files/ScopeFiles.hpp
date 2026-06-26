@@ -50,6 +50,7 @@ struct WorkScopeFile {
     int schemaVersion{1};
     std::string id;
     std::string workKind;
+    std::string workDomain;
     std::string displayName;
     std::optional<ScopeFileReference> series;
     std::vector<ScopeFileReference> sources;

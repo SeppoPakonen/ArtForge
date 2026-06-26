@@ -67,6 +67,7 @@ Minimal examples live under `examples/work-domains/`:
 - `lyrics.afwork.json`
 - `visual-art.afwork.json`
 - `script-storyboard.afwork.json`
+- `unsupported.afwork.json`
 
 These files are intentionally small and deterministic. They are not full editor
 documents yet.

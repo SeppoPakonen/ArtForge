@@ -561,6 +561,7 @@ WorkScopeFileLoadResult LoadWorkScopeFile(const std::filesystem::path& path)
     file.schemaVersion = ReadIntField(json, "schemaVersion").value_or(0);
     file.id = ReadStringField(json, "id").value_or("");
     file.workKind = ReadStringField(json, "workKind").value_or("");
+    file.workDomain = ReadStringField(json, "workDomain").value_or("");
     file.displayName = ReadStringField(json, "displayName").value_or("");
     file.series = ReadReferenceObject(json, "series");
     file.sources = ReadReferenceArray(json, "sources");
@@ -666,6 +667,9 @@ ScopeFileLoadStatus SaveWorkScopeFile(const std::filesystem::path& path, const W
     output << "  " << Key("id") << Quote(file.id) << ",\n";
     output << "  " << Key("scope") << Quote("work") << ",\n";
     output << "  " << Key("workKind") << Quote(file.workKind) << ",\n";
+    if (!file.workDomain.empty()) {
+        output << "  " << Key("workDomain") << Quote(file.workDomain) << ",\n";
+    }
     output << "  " << Key("displayName") << Quote(file.displayName) << ",\n";
     output << "  " << Key("series") << "{\n";
     if (file.series) {

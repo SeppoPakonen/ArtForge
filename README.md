@@ -183,6 +183,10 @@ available from the loaded scope file or solution graph.
 The shared UI module also contains a small reusable pane layout helper for a
 left navigation pane, center workspace pane, right detail/action pane, and
 bottom status area. This is not a docking system.
+`ArtForgeWorkApp` detects the optional `workDomain` field in work files and
+shows placeholder workspace text for lyrics/music, visual art, and
+script/storyboard domains. Unsupported domains produce an explicit placeholder
+status.
 
 The shell model also preserves future navigation concepts without implementing
 them as GUI views yet. Solution shells reserve artists, projects, missing files,
