@@ -1,6 +1,7 @@
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
+#include "ArtForge/Prompting/PromptPackage.hpp"
 #include "ArtForge/Services/EditCommandService.hpp"
 #include "ArtForge/Services/PromptCommandService.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
@@ -9,6 +10,7 @@
 #include <windows.h>
 
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <string_view>
 
@@ -62,6 +64,11 @@ bool IsSaveWorkDocumentCommand(int argumentCount, wchar_t** arguments)
 bool IsEditSelectedTextCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 8 && std::wstring_view{arguments[1]} == L"--edit-selected-text";
+}
+
+bool IsValidateAiResultCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--validate-ai-result";
 }
 
 std::string WorkspaceLabel(std::string_view workDomain)
@@ -306,6 +313,15 @@ std::string EditSelectedText(wchar_t** arguments)
     return output.str();
 }
 
+std::string ValidateAiResult(wchar_t** arguments)
+{
+    std::ifstream input{std::filesystem::path{arguments[2]}};
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    return ArtForge::Prompting::DescribeAiResultValidation(
+        ArtForge::Prompting::ValidateAiResultJsonText(buffer.str()));
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -354,6 +370,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("Edit status: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsValidateAiResultCommand(argumentCount, arguments)) {
+        const auto result = ValidateAiResult(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("AI result validation: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

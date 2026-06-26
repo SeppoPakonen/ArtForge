@@ -45,6 +45,38 @@ enum class ImportValidationStep {
     AskUserToAcceptOrReject
 };
 
+enum class PendingSuggestionStatus {
+    Pending,
+    Accepted,
+    Rejected
+};
+
+struct PendingSuggestionTarget {
+    std::filesystem::path workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{-1};
+    std::string field;
+};
+
+struct PendingSuggestion {
+    std::string suggestionId;
+    std::string promptPackageId;
+    std::filesystem::path promptPackagePath;
+    PendingSuggestionTarget target;
+    std::string proposedText;
+    std::string rationale;
+    std::vector<std::string> diagnostics;
+    PendingSuggestionStatus status{PendingSuggestionStatus::Pending};
+};
+
+struct AiResultValidationResult {
+    bool ok{};
+    std::vector<std::string> diagnostics;
+    std::vector<PendingSuggestion> pendingSuggestions;
+};
+
 struct PromptLayerDescriptor {
     PromptLayer layer;
     std::string_view displayName;
@@ -102,6 +134,7 @@ std::string_view ToDisplayName(PromptLayer layer);
 std::string_view ToDisplayName(PromptInputFormat format);
 std::string_view ToDisplayName(AiOutputSection section);
 std::string_view ToDisplayName(ImportValidationStep step);
+std::string_view ToDisplayName(PendingSuggestionStatus status);
 
 CreativeSubjectProfileFields PlannedCreativeSubjectProfileFields();
 std::string_view PromptPackageHistoryGenerationOperation();
@@ -111,6 +144,8 @@ std::string_view AiResultReviewRequirement();
 PromptPackageBuildResult BuildPromptPackageFromWorkContext(const PromptPackageBuildRequest& request);
 PromptPackageBuildResult BuildPromptPackageFromSelectedDomainItem(const SelectedDomainItemPromptRequest& request);
 std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& result);
+AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText);
+std::string DescribeAiResultValidation(const AiResultValidationResult& result);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},

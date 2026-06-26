@@ -343,6 +343,48 @@ std::string BuildSelectedItemJson(const SelectedDomainItemPromptRequest& request
     return output.str();
 }
 
+bool ContainsField(std::string_view json, std::string_view key)
+{
+    const std::string field = "\"" + std::string{key} + "\"";
+    return json.find(field) != std::string_view::npos;
+}
+
+std::string ExtractStringField(std::string_view json, std::string_view key)
+{
+    const std::string field = "\"" + std::string{key} + "\"";
+    const auto fieldPosition = json.find(field);
+    if (fieldPosition == std::string_view::npos) {
+        return {};
+    }
+    const auto colonPosition = json.find(':', fieldPosition + field.size());
+    if (colonPosition == std::string_view::npos) {
+        return {};
+    }
+    auto quotePosition = json.find('"', colonPosition + 1);
+    if (quotePosition == std::string_view::npos) {
+        return {};
+    }
+    std::string value;
+    bool escaped = false;
+    for (auto index = quotePosition + 1; index < json.size(); ++index) {
+        const char character = json[index];
+        if (escaped) {
+            value += character;
+            escaped = false;
+            continue;
+        }
+        if (character == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (character == '"') {
+            return value;
+        }
+        value += character;
+    }
+    return {};
+}
+
 }
 
 std::string_view PromptPackageContractName()
@@ -426,6 +468,20 @@ std::string_view ToDisplayName(ImportValidationStep step)
     }
 
     return "unknown validation step";
+}
+
+std::string_view ToDisplayName(PendingSuggestionStatus status)
+{
+    switch (status) {
+    case PendingSuggestionStatus::Pending:
+        return "pending";
+    case PendingSuggestionStatus::Accepted:
+        return "accepted";
+    case PendingSuggestionStatus::Rejected:
+        return "rejected";
+    }
+
+    return "unknown";
 }
 
 CreativeSubjectProfileFields PlannedCreativeSubjectProfileFields()
@@ -614,6 +670,70 @@ std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& resu
         }
     }
 
+    return output.str();
+}
+
+AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText)
+{
+    AiResultValidationResult result;
+    const auto first = jsonText.find_first_not_of(" \t\r\n");
+    const auto last = jsonText.find_last_not_of(" \t\r\n");
+    if (first == std::string_view::npos || jsonText[first] != '{' || jsonText[last] != '}') {
+        result.diagnostics.push_back("AI result must be a JSON object.");
+    }
+
+    for (const auto key : {
+             "suggestions",
+             "critiqueItems",
+             "replacementCandidates",
+             "ruleHits",
+             "ruleViolations",
+             "unresolvedQuestions",
+             "confidence",
+             "rationale",
+         }) {
+        if (!ContainsField(jsonText, key)) {
+            result.diagnostics.push_back("missing required AI result section: " + std::string{key});
+        }
+    }
+    for (const auto key : {"resultId", "promptPackageId", "target", "replacementCandidates"}) {
+        if (!ContainsField(jsonText, key)) {
+            result.diagnostics.push_back("missing required field: " + std::string{key});
+        }
+    }
+
+    if (result.diagnostics.empty()) {
+        PendingSuggestion suggestion;
+        suggestion.suggestionId = ExtractStringField(jsonText, "id");
+        suggestion.promptPackageId = ExtractStringField(jsonText, "promptPackageId");
+        suggestion.target.workPath = ExtractStringField(jsonText, "workPath");
+        suggestion.target.domain = ExtractStringField(jsonText, "domain");
+        suggestion.target.itemType = ExtractStringField(jsonText, "itemType");
+        suggestion.target.itemId = ExtractStringField(jsonText, "itemId");
+        suggestion.target.field = ExtractStringField(jsonText, "field");
+        suggestion.proposedText = ExtractStringField(jsonText, "proposedText");
+        suggestion.rationale = ExtractStringField(jsonText, "rationale");
+        suggestion.status = PendingSuggestionStatus::Pending;
+        result.pendingSuggestions.push_back(std::move(suggestion));
+    }
+
+    result.ok = result.diagnostics.empty();
+    return result;
+}
+
+std::string DescribeAiResultValidation(const AiResultValidationResult& result)
+{
+    std::ostringstream output;
+    output << "AI result validation: " << (result.ok ? "OK" : "failed") << "\n";
+    output << "Pending suggestions: " << result.pendingSuggestions.size() << "\n";
+    for (const auto& diagnostic : result.diagnostics) {
+        output << "Diagnostic: " << diagnostic << "\n";
+    }
+    for (const auto& suggestion : result.pendingSuggestions) {
+        output << "Suggestion: " << suggestion.suggestionId << " status=" << ToDisplayName(suggestion.status) << "\n";
+        output << "Target: " << suggestion.target.domain << "/" << suggestion.target.itemType << "#" << suggestion.target.itemId << "." << suggestion.target.field << "\n";
+        output << "Proposed text: " << suggestion.proposedText << "\n";
+    }
     return output.str();
 }
 

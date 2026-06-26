@@ -1,0 +1,40 @@
+{
+  "format": "artforge.ai.selectedItemResult",
+  "schemaVersion": 1,
+  "resultId": "ai.result.script.001",
+  "promptPackageId": "prompt.selected.script.001",
+  "target": {
+    "workPath": "examples/work-domains/script-storyboard.afwork.json",
+    "domain": "scriptStoryboard",
+    "itemType": "scriptBlock",
+    "itemId": "block.opening.dialogue",
+    "itemIndex": 1,
+    "field": "text"
+  },
+  "suggestions": [
+    {
+      "id": "suggestion.script.001",
+      "summary": "Tighten the dialogue without changing intent."
+    }
+  ],
+  "critiqueItems": [
+    "The line works but can carry more tension."
+  ],
+  "replacementCandidates": [
+    {
+      "id": "candidate.script.001",
+      "operation": "replaceText",
+      "field": "text",
+      "proposedText": "We only get one clean version. Use it.",
+      "rationale": "Keeps the controlled voice and makes the beat sharper.",
+      "diagnostics": []
+    }
+  ],
+  "ruleHits": [
+    "Keep speaker voice controlled."
+  ],
+  "ruleViolations": [],
+  "unresolvedQuestions": [],
+  "confidence": 0.69,
+  "rationale": "The candidate should remain pending until reviewed."
+}

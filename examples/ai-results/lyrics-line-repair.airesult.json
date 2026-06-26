@@ -1,0 +1,40 @@
+{
+  "format": "artforge.ai.selectedItemResult",
+  "schemaVersion": 1,
+  "resultId": "ai.result.lyrics.001",
+  "promptPackageId": "prompt.selected.lyrics.001",
+  "target": {
+    "workPath": "examples/work-domains/lyrics.afwork.json",
+    "domain": "lyrics",
+    "itemType": "lyricLine",
+    "itemId": "line.v1.001",
+    "itemIndex": 0,
+    "field": "text"
+  },
+  "suggestions": [
+    {
+      "id": "suggestion.lyrics.001",
+      "summary": "Make the line more singable while preserving the door image."
+    }
+  ],
+  "critiqueItems": [
+    "The current line is clear but slightly static."
+  ],
+  "replacementCandidates": [
+    {
+      "id": "candidate.lyrics.001",
+      "operation": "replaceText",
+      "field": "text",
+      "proposedText": "I leave the door with a quiet name",
+      "rationale": "Keeps the image and moves better as a sung phrase.",
+      "diagnostics": []
+    }
+  ],
+  "ruleHits": [
+    "Preserve concrete image."
+  ],
+  "ruleViolations": [],
+  "unresolvedQuestions": [],
+  "confidence": 0.72,
+  "rationale": "A small line repair is enough for this pass."
+}

@@ -1,0 +1,40 @@
+{
+  "format": "artforge.ai.selectedItemResult",
+  "schemaVersion": 1,
+  "resultId": "ai.result.visual.001",
+  "promptPackageId": "prompt.selected.visual.001",
+  "target": {
+    "workPath": "examples/work-domains/visual-art.afwork.json",
+    "domain": "visualArt",
+    "itemType": "visualLayer",
+    "itemId": "viewer.foreground",
+    "itemIndex": 0,
+    "field": "intent"
+  },
+  "suggestions": [
+    {
+      "id": "suggestion.visual.001",
+      "summary": "Clarify the foreground layer's purpose."
+    }
+  ],
+  "critiqueItems": [
+    "The current intent names readability but not how it guides attention."
+  ],
+  "replacementCandidates": [
+    {
+      "id": "candidate.visual.001",
+      "operation": "replaceText",
+      "field": "intent",
+      "proposedText": "Readable silhouette that anchors the first focal point before the eye moves backward.",
+      "rationale": "Keeps the layer goal concrete and adds composition direction.",
+      "diagnostics": []
+    }
+  ],
+  "ruleHits": [
+    "Maintain foreground readability."
+  ],
+  "ruleViolations": [],
+  "unresolvedQuestions": [],
+  "confidence": 0.77,
+  "rationale": "The suggested intent is reviewable and non-destructive."
+}
