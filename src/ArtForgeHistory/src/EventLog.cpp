@@ -314,6 +314,26 @@ std::optional<PresentationCommandHistoryMetadata> ReadPresentationCommandMetadat
     };
 }
 
+std::optional<ChangeSetHistoryMetadata> ReadChangeSetMetadataField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "change_set", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return ChangeSetHistoryMetadata{
+        ReadStringField(*objectJson, "work_id").value_or(""),
+        ReadStringField(*objectJson, "work_path").value_or(""),
+        ReadStringField(*objectJson, "domain").value_or(""),
+        ReadStringField(*objectJson, "item_type").value_or(""),
+        ReadStringField(*objectJson, "item_id").value_or(""),
+        ReadIntField(*objectJson, "item_index").value_or(0),
+        ReadStringField(*objectJson, "command_id").value_or(""),
+        ReadIntField(*objectJson, "change_count").value_or(0),
+        ReadStringField(*objectJson, "operation_summary").value_or(""),
+    };
+}
+
 std::optional<HistoryActor> ParseActor(std::string_view value)
 {
     if (value == "user") {
@@ -468,6 +488,7 @@ std::optional<StoredHistoryEvent> ParseHistoryEventLine(std::string_view line, s
     event.branch = ReadBranchPlaceholderField(line);
     event.domainItem = ReadDomainItemMetadataField(line);
     event.presentationCommand = ReadPresentationCommandMetadataField(line);
+    event.changeSet = ReadChangeSetMetadataField(line);
 
     const auto actor = ParseActor(ReadStringField(line, "actor").value_or(""));
     if (!actor) {
@@ -557,6 +578,21 @@ void AppendPresentationCommandMetadata(std::ostringstream& output, const Present
     output << "\"item_index\":" << metadata.itemIndex << ",";
     output << "\"command_name\":" << Quote(metadata.commandName) << ",";
     output << "\"result_status\":" << Quote(metadata.resultStatus);
+    output << "}";
+}
+
+void AppendChangeSetMetadata(std::ostringstream& output, const ChangeSetHistoryMetadata& metadata)
+{
+    output << ",\"change_set\":{";
+    output << "\"work_id\":" << Quote(metadata.workId) << ",";
+    output << "\"work_path\":" << Quote(metadata.workPath) << ",";
+    output << "\"domain\":" << Quote(metadata.domain) << ",";
+    output << "\"item_type\":" << Quote(metadata.itemType) << ",";
+    output << "\"item_id\":" << Quote(metadata.itemId) << ",";
+    output << "\"item_index\":" << metadata.itemIndex << ",";
+    output << "\"command_id\":" << Quote(metadata.commandId) << ",";
+    output << "\"change_count\":" << metadata.changeCount << ",";
+    output << "\"operation_summary\":" << Quote(metadata.operationSummary);
     output << "}";
 }
 
@@ -663,6 +699,18 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "prompt preview requested";
     case HistoryOperation::SelectedItemPromptPackageBuilt:
         return "selected item prompt package built";
+    case HistoryOperation::EditCommandRequested:
+        return "edit command requested";
+    case HistoryOperation::ChangeSetValidated:
+        return "change set validated";
+    case HistoryOperation::ChangeSetApplied:
+        return "change set applied";
+    case HistoryOperation::SaveRequested:
+        return "save requested";
+    case HistoryOperation::SaveSucceeded:
+        return "save succeeded";
+    case HistoryOperation::SaveFailed:
+        return "save failed";
     }
 
     return "unknown";
@@ -802,6 +850,9 @@ std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event)
     }
     if (event.presentationCommand) {
         AppendPresentationCommandMetadata(output, *event.presentationCommand);
+    }
+    if (event.changeSet) {
+        AppendChangeSetMetadata(output, *event.changeSet);
     }
     output << "}";
     return output.str();
@@ -973,6 +1024,44 @@ HistoryLogStatus RecordPresentationCommandHistoryEvent(
         return AppendHistoryEventJsonLine(
             DefaultOperationHistoryPath(scopeFilePath),
             CreatePresentationCommandHistoryEvent(operation, metadata));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
+}
+
+StoredHistoryEvent CreateChangeSetHistoryEvent(
+    HistoryOperation operation,
+    const ChangeSetHistoryMetadata& metadata)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    const auto operationName = ToDisplayName(operation);
+    const auto identity = metadata.workPath + metadata.domain + metadata.itemType + metadata.itemId + std::to_string(metadata.itemIndex) + metadata.commandId + std::to_string(metadata.changeCount) + std::string{operationName};
+
+    StoredHistoryEvent event;
+    event.id = "hist.changeset." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(identity));
+    event.timestamp = timestamp;
+    event.actor = HistoryActor::User;
+    event.scope = HistoryScope::Work;
+    event.operation = operation;
+    event.summary = metadata.operationSummary.empty() ? std::string{operationName} : metadata.operationSummary;
+    if (!metadata.workPath.empty()) {
+        event.affectedFiles = {metadata.workPath};
+    }
+    event.changeSet = metadata;
+    return event;
+}
+
+HistoryLogStatus RecordChangeSetHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const ChangeSetHistoryMetadata& metadata)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreateChangeSetHistoryEvent(operation, metadata));
     } catch (const std::exception& exception) {
         return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
     } catch (...) {

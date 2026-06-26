@@ -49,6 +49,11 @@ bool IsUpdateWorkTextCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 8 && std::wstring_view{arguments[1]} == L"--update-work-text";
 }
 
+bool IsRecordChangeSetHistoryCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 11 && std::wstring_view{arguments[1]} == L"--record-change-set-history";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -173,6 +178,47 @@ std::string UpdateWorkText(wchar_t** arguments)
     return output.str();
 }
 
+std::string RecordChangeSetHistory(wchar_t** arguments)
+{
+    const auto path = std::filesystem::path{arguments[2]};
+    const auto operationName = WideToUtf8(arguments[3]);
+    auto operation = ArtForge::History::HistoryOperation::ChangeSetApplied;
+    if (operationName == "edit-command-requested") {
+        operation = ArtForge::History::HistoryOperation::EditCommandRequested;
+    } else if (operationName == "change-set-validated") {
+        operation = ArtForge::History::HistoryOperation::ChangeSetValidated;
+    } else if (operationName == "save-requested") {
+        operation = ArtForge::History::HistoryOperation::SaveRequested;
+    } else if (operationName == "save-succeeded") {
+        operation = ArtForge::History::HistoryOperation::SaveSucceeded;
+    } else if (operationName == "save-failed") {
+        operation = ArtForge::History::HistoryOperation::SaveFailed;
+    }
+
+    const auto load = ArtForge::Files::LoadWorkScopeFile(path);
+    const auto status = ArtForge::History::RecordChangeSetHistoryEvent(
+        path,
+        operation,
+        {
+            load.file.id,
+            path.generic_string(),
+            WideToUtf8(arguments[4]),
+            WideToUtf8(arguments[5]),
+            WideToUtf8(arguments[6]),
+            std::stoi(std::wstring{arguments[7]}),
+            WideToUtf8(arguments[8]),
+            std::stoi(std::wstring{arguments[9]}),
+            WideToUtf8(arguments[10]),
+        });
+
+    std::ostringstream output;
+    output << "History status: " << (status.ok ? "OK" : "failed") << "\n";
+    for (const auto& issue : status.issues) {
+        output << "Issue: " << issue.message << "\n";
+    }
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -203,6 +249,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("Update status: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsRecordChangeSetHistoryCommand(argumentCount, arguments)) {
+        const auto result = RecordChangeSetHistory(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("History status: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

@@ -44,7 +44,13 @@ enum class HistoryOperation {
     ItemFlaggedForReview,
     PresentationSelectionChanged,
     PromptPreviewRequested,
-    SelectedItemPromptPackageBuilt
+    SelectedItemPromptPackageBuilt,
+    EditCommandRequested,
+    ChangeSetValidated,
+    ChangeSetApplied,
+    SaveRequested,
+    SaveSucceeded,
+    SaveFailed
 };
 
 struct HistoryEventId {
@@ -92,6 +98,18 @@ struct PresentationCommandHistoryMetadata {
     int itemIndex{};
     std::string commandName;
     std::string resultStatus;
+};
+
+struct ChangeSetHistoryMetadata {
+    std::string workId;
+    std::string workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{};
+    std::string commandId;
+    int changeCount{};
+    std::string operationSummary;
 };
 
 struct HistoryItemFields {
@@ -145,6 +163,7 @@ struct StoredHistoryEvent {
     std::optional<HistoryBranchPlaceholder> branch;
     std::optional<DomainItemHistoryMetadata> domainItem;
     std::optional<PresentationCommandHistoryMetadata> presentationCommand;
+    std::optional<ChangeSetHistoryMetadata> changeSet;
 };
 
 struct HistoryLogIssue {
@@ -210,12 +229,20 @@ HistoryLogStatus RecordPresentationCommandHistoryEvent(
     HistoryOperation operation,
     const PresentationCommandHistoryMetadata& metadata);
 
+StoredHistoryEvent CreateChangeSetHistoryEvent(
+    HistoryOperation operation,
+    const ChangeSetHistoryMetadata& metadata);
+HistoryLogStatus RecordChangeSetHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const ChangeSetHistoryMetadata& metadata);
+
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 21> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 27> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -237,6 +264,12 @@ constexpr std::array<HistoryOperation, 21> ExampleHistoryOperations{{
     HistoryOperation::PresentationSelectionChanged,
     HistoryOperation::PromptPreviewRequested,
     HistoryOperation::SelectedItemPromptPackageBuilt,
+    HistoryOperation::EditCommandRequested,
+    HistoryOperation::ChangeSetValidated,
+    HistoryOperation::ChangeSetApplied,
+    HistoryOperation::SaveRequested,
+    HistoryOperation::SaveSucceeded,
+    HistoryOperation::SaveFailed,
 }};
 
 }
