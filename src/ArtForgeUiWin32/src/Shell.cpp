@@ -2,6 +2,7 @@
 
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
+#include "ArtForge/History/EventLog.hpp"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -146,6 +147,43 @@ ArtForge::Files::ScopeFileLoadStatus LoadScopeFileStatus(
     return {false, {{"unknown scope type"}}};
 }
 
+ArtForge::History::HistoryScope ToHistoryScope(ArtForge::Core::ScopeKind scope)
+{
+    switch (scope) {
+    case ArtForge::Core::ScopeKind::Solution:
+        return ArtForge::History::HistoryScope::Solution;
+    case ArtForge::Core::ScopeKind::Artist:
+        return ArtForge::History::HistoryScope::Artist;
+    case ArtForge::Core::ScopeKind::Series:
+        return ArtForge::History::HistoryScope::Series;
+    case ArtForge::Core::ScopeKind::WorkItem:
+        return ArtForge::History::HistoryScope::Work;
+    case ArtForge::Core::ScopeKind::Fragment:
+        return ArtForge::History::HistoryScope::Fragment;
+    }
+
+    return ArtForge::History::HistoryScope::Fragment;
+}
+
+void RecordFileOperation(
+    const ScopeShellState& state,
+    ArtForge::History::HistoryOperation operation,
+    std::string_view summary,
+    std::string_view detail)
+{
+    if (state.openedPath.empty()) {
+        return;
+    }
+
+    const auto status = ArtForge::History::RecordFileOperationHistoryEvent(
+        std::filesystem::path{state.openedPath},
+        ToHistoryScope(state.descriptor.scope),
+        operation,
+        summary,
+        detail);
+    (void)status;
+}
+
 void PopulateSolutionNavigation(HWND tree, const std::filesystem::path& path)
 {
     const auto graph = ArtForge::Files::LoadSolutionProjectGraph(path);
@@ -280,6 +318,8 @@ void UpdateFileStatus(ScopeShellState& state)
         return;
     }
 
+    RecordFileOperation(state, ArtForge::History::HistoryOperation::FileOpenAttempted, "File open attempted", "");
+
     const auto loadStatus = LoadScopeFileStatus(
         state.descriptor.scope,
         std::filesystem::path{state.openedPath});
@@ -287,12 +327,15 @@ void UpdateFileStatus(ScopeShellState& state)
     if (loadStatus.ok) {
         state.loadStatusText = L"File load OK";
         state.loadDetailText = L"Scope file parsed successfully.";
+        RecordFileOperation(state, ArtForge::History::HistoryOperation::FileLoadSucceeded, "File load succeeded", "");
         return;
     }
 
     state.loadStatusText = L"File load failed";
     const auto issueText = FirstIssueText(loadStatus);
     state.loadDetailText = issueText.empty() ? L"Unknown load error." : issueText;
+    const auto detail = loadStatus.issues.empty() ? std::string{"Unknown load error."} : loadStatus.issues.front().message;
+    RecordFileOperation(state, ArtForge::History::HistoryOperation::FileLoadFailed, "File load failed", detail);
 }
 
 std::wstring SummaryText(const ScopeShellState& state)

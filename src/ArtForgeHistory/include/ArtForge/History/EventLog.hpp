@@ -32,7 +32,11 @@ enum class HistoryOperation {
     PromptPackageGenerated,
     AiJsonResultImported,
     SnapshotCreated,
-    BranchCreated
+    BranchCreated,
+    FileOpenAttempted,
+    FileLoadSucceeded,
+    FileLoadFailed,
+    FileSaveSucceeded
 };
 
 struct HistoryEventId {
@@ -145,12 +149,26 @@ HistoryLogStatus AppendHistoryEventJsonLine(const std::filesystem::path& path, c
 HistoryLogStatus AppendHistoryEventJsonLine(const std::filesystem::path& path, const StoredHistoryEvent& event);
 HistoryLogReadResult ReadHistoryEventJsonLines(const std::filesystem::path& path);
 
+std::filesystem::path DefaultOperationHistoryPath(const std::filesystem::path& scopeFilePath);
+StoredHistoryEvent CreateFileOperationHistoryEvent(
+    HistoryScope scope,
+    HistoryOperation operation,
+    const std::filesystem::path& affectedFile,
+    std::string_view summary,
+    std::string_view detail);
+HistoryLogStatus RecordFileOperationHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryScope scope,
+    HistoryOperation operation,
+    std::string_view summary,
+    std::string_view detail);
+
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 9> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 13> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -160,6 +178,10 @@ constexpr std::array<HistoryOperation, 9> ExampleHistoryOperations{{
     HistoryOperation::AiJsonResultImported,
     HistoryOperation::SnapshotCreated,
     HistoryOperation::BranchCreated,
+    HistoryOperation::FileOpenAttempted,
+    HistoryOperation::FileLoadSucceeded,
+    HistoryOperation::FileLoadFailed,
+    HistoryOperation::FileSaveSucceeded,
 }};
 
 }

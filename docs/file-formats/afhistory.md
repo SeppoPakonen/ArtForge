@@ -68,6 +68,15 @@ or restore history:
 }
 ```
 
+Scope applications may also append non-fatal file operation events to
+`operations.afhistory.jsonl` beside the opened scope file. These events record
+basic UI/file operations without implementing undo or redo:
+
+- `file open attempted`
+- `file load succeeded`
+- `file load failed`
+- `file save succeeded`
+
 ## Rules
 
 - `id` is stable and unique within the history file.

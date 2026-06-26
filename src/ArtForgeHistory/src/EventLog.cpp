@@ -1,9 +1,12 @@
 #include "ArtForge/History/EventLog.hpp"
 
 #include <cctype>
+#include <chrono>
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <iomanip>
+#include <ctime>
 
 namespace ArtForge::History {
 
@@ -41,6 +44,34 @@ std::string JsonEscape(std::string_view value)
 std::string Quote(std::string_view value)
 {
     return "\"" + JsonEscape(value) + "\"";
+}
+
+std::string PathUtf8(const std::filesystem::path& path)
+{
+    return path.generic_string();
+}
+
+std::string CurrentUtcTimestamp()
+{
+    const auto now = std::chrono::system_clock::now();
+    const auto time = std::chrono::system_clock::to_time_t(now);
+    std::tm utc{};
+    gmtime_s(&utc, &time);
+
+    std::ostringstream output;
+    output << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+    return output.str();
+}
+
+std::string CompactTimestampForId(std::string_view timestamp)
+{
+    std::string compact;
+    for (const char character : timestamp) {
+        if (std::isalnum(static_cast<unsigned char>(character)) != 0) {
+            compact += static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+        }
+    }
+    return compact;
 }
 
 void AddIssue(HistoryLogStatus& status, std::size_t lineNumber, std::string message)
@@ -518,6 +549,14 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "snapshot created";
     case HistoryOperation::BranchCreated:
         return "branch created";
+    case HistoryOperation::FileOpenAttempted:
+        return "file open attempted";
+    case HistoryOperation::FileLoadSucceeded:
+        return "file load succeeded";
+    case HistoryOperation::FileLoadFailed:
+        return "file load failed";
+    case HistoryOperation::FileSaveSucceeded:
+        return "file save succeeded";
     }
 
     return "unknown";
@@ -702,6 +741,55 @@ HistoryLogReadResult ReadHistoryEventJsonLines(const std::filesystem::path& path
 
     result.status.ok = result.status.issues.empty();
     return result;
+}
+
+std::filesystem::path DefaultOperationHistoryPath(const std::filesystem::path& scopeFilePath)
+{
+    const auto parent = scopeFilePath.has_parent_path() ? scopeFilePath.parent_path() : std::filesystem::path{"."};
+    return parent / "operations.afhistory.jsonl";
+}
+
+StoredHistoryEvent CreateFileOperationHistoryEvent(
+    HistoryScope scope,
+    HistoryOperation operation,
+    const std::filesystem::path& affectedFile,
+    std::string_view summary,
+    std::string_view detail)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    const auto operationName = ToDisplayName(operation);
+
+    StoredHistoryEvent event;
+    event.id = "hist.operation." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(PathUtf8(affectedFile) + std::string{operationName}));
+    event.timestamp = timestamp;
+    event.actor = HistoryActor::System;
+    event.scope = scope;
+    event.operation = operation;
+    event.summary = std::string{summary};
+    if (!detail.empty()) {
+        event.summary += ": ";
+        event.summary += detail;
+    }
+    event.affectedFiles = {PathUtf8(affectedFile)};
+    return event;
+}
+
+HistoryLogStatus RecordFileOperationHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryScope scope,
+    HistoryOperation operation,
+    std::string_view summary,
+    std::string_view detail)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreateFileOperationHistoryEvent(scope, operation, scopeFilePath, summary, detail));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
 }
 
 std::string_view CreateHistoryItemOperationName()
