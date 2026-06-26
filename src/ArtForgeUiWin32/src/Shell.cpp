@@ -1,5 +1,6 @@
 #include "ArtForge/UiWin32/Shell.hpp"
 
+#include "ArtForge/UiWin32/CommonControls.hpp"
 #include "ArtForge/UiWin32/PaneLayout.hpp"
 
 #include "ArtForge/Files/ProjectGraph.hpp"
@@ -22,7 +23,8 @@ constexpr int FileExitCommand = 1001;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
 constexpr int NavigationTreeId = 2003;
-constexpr int DetailPaneId = 2004;
+constexpr int DetailTabId = 2004;
+constexpr int DetailListId = 2005;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
@@ -31,7 +33,8 @@ struct ScopeShellState {
     std::wstring loadDetailText;
     HWND navigationTree{};
     HWND summaryControl{};
-    HWND detailPane{};
+    TabControl detailTabs;
+    ListViewReport detailList;
     HWND statusBar{};
 };
 
@@ -382,21 +385,23 @@ std::wstring WorkDomainWorkspaceText(std::string_view workDomain)
     return L"Unsupported work domain\r\n\r\nDomain value is not supported by the placeholder workspace yet.";
 }
 
-std::wstring DetailPaneText(const ScopeShellState& state)
+void PopulateDetailList(ScopeShellState& state)
 {
+    const auto pathText = state.openedPath.empty() ? std::wstring{L"(none)"} : state.openedPath;
+
+    state.detailList.ClearRows();
+    state.detailList.AddRow({L"Application", state.descriptor.applicationName});
+    state.detailList.AddRow({L"Scope", ArtForge::Core::ToDisplayName(state.descriptor.scope)});
+    state.detailList.AddRow({L"Path", pathText});
+    state.detailList.AddRow({L"Load status", state.loadStatusText});
+    state.detailList.AddRow({L"Load detail", state.loadDetailText});
+
     if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
         const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
-        return WorkDomainWorkspaceText(result.file.workDomain);
+        const auto domain = result.file.workDomain.empty() ? std::wstring{L"(unspecified)"} : Utf8ToWide(result.file.workDomain);
+        state.detailList.AddRow({L"Work domain", domain});
+        state.detailList.AddRow({L"Workspace", WorkDomainWorkspaceText(result.file.workDomain)});
     }
-
-    std::wstring text;
-    text += L"Properties and actions\r\n";
-    text += L"\r\nScope: ";
-    text += ArtForge::Core::ToDisplayName(state.descriptor.scope);
-    text += L"\r\nPath status: ";
-    text += state.loadStatusText;
-    text += L"\r\n\r\nPlaceholder pane for selected-item details, actions, rule hits, and diagnostics.";
-    return text;
 }
 
 HMENU CreateShellMenu()
@@ -430,8 +435,11 @@ void LayoutChildren(HWND window)
     ArtForge::UiWin32::ApplyThreePaneLayout(
         state->navigationTree,
         state->summaryControl,
-        state->detailPane,
+        state->detailTabs.Window(),
         rectangles);
+
+    const auto detailArea = state->detailTabs.DisplayArea();
+    state->detailList.Move(detailArea);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -472,20 +480,14 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             create->hInstance,
             nullptr);
 
-        const auto detail = DetailPaneText(*state);
-        state->detailPane = CreateWindowExW(
-            WS_EX_CLIENTEDGE,
-            L"STATIC",
-            detail.c_str(),
-            WS_CHILD | WS_VISIBLE | SS_LEFT,
-            0,
-            0,
-            0,
-            0,
-            window,
-            reinterpret_cast<HMENU>(static_cast<INT_PTR>(DetailPaneId)),
-            create->hInstance,
-            nullptr);
+        state->detailTabs.Create(window, DetailTabId, create->hInstance);
+        state->detailTabs.AddTab(0, L"Details");
+        state->detailTabs.AddTab(1, L"Actions");
+
+        state->detailList.Create(window, DetailListId, create->hInstance);
+        state->detailList.AddColumn(0, L"Name", 96);
+        state->detailList.AddColumn(1, L"Value", 320);
+        PopulateDetailList(*state);
 
         state->statusBar = CreateWindowExW(
             0,
@@ -582,7 +584,7 @@ int RunScopeShell(
 {
     INITCOMMONCONTROLSEX commonControls{};
     commonControls.dwSize = sizeof(commonControls);
-    commonControls.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES | ICC_TREEVIEW_CLASSES;
+    commonControls.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES | ICC_TREEVIEW_CLASSES | ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES;
     InitCommonControlsEx(&commonControls);
 
     RegisterShellWindowClass(instance);
