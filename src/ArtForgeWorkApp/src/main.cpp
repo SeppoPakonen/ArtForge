@@ -1,5 +1,6 @@
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
+#include "ArtForge/Prompting/PromptPackage.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
 
 #include <shellapi.h>
@@ -29,6 +30,11 @@ void WriteStdout(std::string_view text)
 bool IsDescribeWorkDomainCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--describe-work-domain";
+}
+
+bool IsBuildSelectedPromptCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 6 && std::wstring_view{arguments[1]} == L"--build-selected-prompt";
 }
 
 std::string WorkspaceLabel(std::string_view workDomain)
@@ -64,6 +70,63 @@ std::string DescribeWorkDomain(const std::filesystem::path& path)
     return output.str();
 }
 
+std::string WideToUtf8(std::wstring_view value)
+{
+    if (value.empty()) {
+        return {};
+    }
+
+    const auto requiredLength = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr);
+    if (requiredLength <= 0) {
+        std::string fallback;
+        for (const auto character : value) {
+            fallback += character <= 0x7f ? static_cast<char>(character) : '?';
+        }
+        return fallback;
+    }
+
+    std::string converted(static_cast<std::size_t>(requiredLength), '\0');
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        converted.data(),
+        requiredLength,
+        nullptr,
+        nullptr);
+    return converted;
+}
+
+std::string BuildSelectedPromptDebugDump(wchar_t** arguments)
+{
+    const std::filesystem::path workPath{arguments[2]};
+    const auto work = ArtForge::Files::LoadWorkScopeFile(workPath);
+    const auto itemType = WideToUtf8(arguments[3]);
+    const auto itemIndex = std::stoi(std::wstring{arguments[4]});
+    const auto requestedOperation = WideToUtf8(arguments[5]);
+
+    ArtForge::Prompting::SelectedDomainItemPromptRequest request{
+        workPath,
+        work.file.id,
+        work.file.workDomain,
+        itemType,
+        {},
+        itemIndex,
+        requestedOperation,
+    };
+    const auto result = ArtForge::Prompting::BuildPromptPackageFromSelectedDomainItem(request);
+    return ArtForge::Prompting::SerializePromptPackageDebugDump(result);
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -76,6 +139,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         const auto loadResult = ArtForge::Files::LoadWorkScopeFile(arguments[2]);
         LocalFree(arguments);
         return loadResult.status.ok ? 0 : 2;
+    }
+    if (arguments != nullptr && IsBuildSelectedPromptCommand(argumentCount, arguments)) {
+        const auto result = BuildSelectedPromptDebugDump(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return 0;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

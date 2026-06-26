@@ -1,5 +1,7 @@
 #include "ArtForge/Prompting/PromptPackage.hpp"
 
+#include "ArtForge/Files/DomainWorkViewModels.hpp"
+
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -166,6 +168,179 @@ std::string BuildCurrentStateJson(
 std::string FenceName(PromptInputFormat format)
 {
     return format == PromptInputFormat::Json ? "json" : "markdown";
+}
+
+std::string BuildSelectedItemOutputContractJson()
+{
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.ai.selectedItemResult\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"requiredTopLevelKeys\": [\n";
+    output << "    \"suggestions\",\n";
+    output << "    \"critiqueItems\",\n";
+    output << "    \"replacementCandidates\",\n";
+    output << "    \"ruleHits\",\n";
+    output << "    \"ruleViolations\",\n";
+    output << "    \"unresolvedQuestions\",\n";
+    output << "    \"confidence\",\n";
+    output << "    \"rationale\"\n";
+    output << "  ],\n";
+    output << "  \"importPolicy\": \"AI output must be valid JSON and validated before import.\"\n";
+    output << "}\n";
+    return output.str();
+}
+
+std::string BuildSelectedItemTaskInstruction(const SelectedDomainItemPromptRequest& request)
+{
+    std::ostringstream output;
+    output << "# Selected Domain Item Request\n\n";
+    output << "- Requested operation: " << request.requestedOperation << "\n";
+    output << "- Domain: " << request.domain << "\n";
+    output << "- Selected item type: " << request.selectedItemType << "\n";
+    output << "- Selected item id: " << request.selectedItemId << "\n";
+    output << "- Selected item index: " << request.selectedItemIndex << "\n\n";
+    output << "Return only JSON matching the output contract. Do not modify project files.\n";
+    return output.str();
+}
+
+std::string BuildSelectedLyricLineJson(const SelectedDomainItemPromptRequest& request)
+{
+    const auto model = ArtForge::Files::LoadLyricsWorkViewModel(request.workPath);
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.prompt.selectedDomainItem\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"work\": {\n";
+    output << "    \"id\": " << Quote(model.metadata.id) << ",\n";
+    output << "    \"path\": " << Quote(request.workPath.string()) << ",\n";
+    output << "    \"displayName\": " << Quote(model.metadata.displayName) << ",\n";
+    output << "    \"domain\": \"lyrics\"\n";
+    output << "  },\n";
+    output << "  \"selection\": {\n";
+    output << "    \"type\": \"lyricLine\",\n";
+    const auto index = request.selectedItemIndex >= 0 ? static_cast<std::size_t>(request.selectedItemIndex) : model.lyricLines.size();
+    if (index < model.lyricLines.size()) {
+        const auto& line = model.lyricLines[index];
+        output << "    \"id\": " << Quote(line.id) << ",\n";
+        output << "    \"index\": " << request.selectedItemIndex << ",\n";
+        output << "    \"sectionId\": " << Quote(line.sectionId) << ",\n";
+        output << "    \"timeRange\": " << Quote(line.timeRange) << ",\n";
+        output << "    \"text\": " << Quote(line.text) << ",\n";
+        output << "    \"evaluation\": " << Quote(line.evaluationSummary) << "\n";
+    } else {
+        output << "    \"id\": " << Quote(request.selectedItemId) << ",\n";
+        output << "    \"index\": " << request.selectedItemIndex << ",\n";
+        output << "    \"missing\": true\n";
+    }
+    output << "  }\n";
+    output << "}\n";
+    return output.str();
+}
+
+std::string BuildSelectedVisualLayerJson(const SelectedDomainItemPromptRequest& request)
+{
+    const auto model = ArtForge::Files::LoadVisualArtWorkViewModel(request.workPath);
+    std::vector<ArtForge::Files::VisualArtLayerView> layers = model.viewerLayers;
+    layers.insert(layers.end(), model.paintLayers.begin(), model.paintLayers.end());
+
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.prompt.selectedDomainItem\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"work\": {\n";
+    output << "    \"id\": " << Quote(model.metadata.id) << ",\n";
+    output << "    \"path\": " << Quote(request.workPath.string()) << ",\n";
+    output << "    \"displayName\": " << Quote(model.metadata.displayName) << ",\n";
+    output << "    \"domain\": \"visualArt\"\n";
+    output << "  },\n";
+    output << "  \"selection\": {\n";
+    output << "    \"type\": \"visualLayer\",\n";
+    const auto index = request.selectedItemIndex >= 0 ? static_cast<std::size_t>(request.selectedItemIndex) : layers.size();
+    if (index < layers.size()) {
+        const auto& layer = layers[index];
+        output << "    \"id\": " << Quote(layer.id) << ",\n";
+        output << "    \"index\": " << request.selectedItemIndex << ",\n";
+        output << "    \"layerType\": " << Quote(layer.layerType) << ",\n";
+        output << "    \"label\": " << Quote(layer.label) << ",\n";
+        output << "    \"intent\": " << Quote(layer.intent) << ",\n";
+        output << "    \"priority\": " << Quote(layer.priority) << ",\n";
+        output << "    \"status\": " << Quote(layer.status) << "\n";
+    } else {
+        output << "    \"id\": " << Quote(request.selectedItemId) << ",\n";
+        output << "    \"index\": " << request.selectedItemIndex << ",\n";
+        output << "    \"missing\": true\n";
+    }
+    output << "  }\n";
+    output << "}\n";
+    return output.str();
+}
+
+std::string BuildSelectedScriptBlockJson(const SelectedDomainItemPromptRequest& request)
+{
+    const auto model = ArtForge::Files::LoadScriptStoryboardWorkViewModel(request.workPath);
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.prompt.selectedDomainItem\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"work\": {\n";
+    output << "    \"id\": " << Quote(model.metadata.id) << ",\n";
+    output << "    \"path\": " << Quote(request.workPath.string()) << ",\n";
+    output << "    \"displayName\": " << Quote(model.metadata.displayName) << ",\n";
+    output << "    \"domain\": \"scriptStoryboard\"\n";
+    output << "  },\n";
+    output << "  \"selection\": {\n";
+    output << "    \"type\": \"scriptBlock\",\n";
+    const auto index = request.selectedItemIndex >= 0 ? static_cast<std::size_t>(request.selectedItemIndex) : model.blocks.size();
+    if (index < model.blocks.size()) {
+        const auto& block = model.blocks[index];
+        output << "    \"id\": " << Quote(block.id) << ",\n";
+        output << "    \"index\": " << request.selectedItemIndex << ",\n";
+        output << "    \"sceneId\": " << Quote(block.sceneId) << ",\n";
+        output << "    \"kind\": " << Quote(block.kind) << ",\n";
+        output << "    \"timeRange\": " << Quote(block.timeRange) << ",\n";
+        output << "    \"speaker\": " << Quote(block.speaker) << ",\n";
+        output << "    \"voice\": " << Quote(block.voice) << ",\n";
+        output << "    \"text\": " << Quote(block.text) << "\n";
+    } else {
+        output << "    \"id\": " << Quote(request.selectedItemId) << ",\n";
+        output << "    \"index\": " << request.selectedItemIndex << ",\n";
+        output << "    \"missing\": true\n";
+    }
+    output << "  }\n";
+    output << "}\n";
+    return output.str();
+}
+
+std::string BuildSelectedItemJson(const SelectedDomainItemPromptRequest& request)
+{
+    if (request.domain == "lyrics") {
+        return BuildSelectedLyricLineJson(request);
+    }
+    if (request.domain == "visualArt") {
+        return BuildSelectedVisualLayerJson(request);
+    }
+    if (request.domain == "scriptStoryboard") {
+        return BuildSelectedScriptBlockJson(request);
+    }
+
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.prompt.selectedDomainItem\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"work\": {\n";
+    output << "    \"id\": " << Quote(request.workId) << ",\n";
+    output << "    \"path\": " << Quote(request.workPath.string()) << ",\n";
+    output << "    \"domain\": " << Quote(request.domain) << "\n";
+    output << "  },\n";
+    output << "  \"selection\": {\n";
+    output << "    \"type\": " << Quote(request.selectedItemType) << ",\n";
+    output << "    \"id\": " << Quote(request.selectedItemId) << ",\n";
+    output << "    \"index\": " << request.selectedItemIndex << ",\n";
+    output << "    \"unsupportedDomain\": true\n";
+    output << "  }\n";
+    output << "}\n";
+    return output.str();
 }
 
 }
@@ -365,6 +540,42 @@ PromptPackageBuildResult BuildPromptPackageFromWorkContext(const PromptPackageBu
     } else {
         result.issues.push_back("output schema path is required");
     }
+
+    result.ok = result.issues.empty();
+    return result;
+}
+
+PromptPackageBuildResult BuildPromptPackageFromSelectedDomainItem(const SelectedDomainItemPromptRequest& request)
+{
+    PromptPackageBuildResult result;
+    if (request.workPath.empty()) {
+        result.issues.push_back("work path is required");
+    }
+    if (request.domain.empty()) {
+        result.issues.push_back("domain is required");
+    }
+    if (request.selectedItemType.empty()) {
+        result.issues.push_back("selected item type is required");
+    }
+    if (request.requestedOperation.empty()) {
+        result.issues.push_back("requested operation is required");
+    }
+
+    result.layers.push_back(GeneratedLayer(
+        PromptLayer::WorkItemState,
+        "selected domain item",
+        PromptInputFormat::Json,
+        BuildSelectedItemJson(request)));
+    result.layers.push_back(GeneratedLayer(
+        PromptLayer::UserMarkingsAndRepairRequests,
+        "selected item request",
+        PromptInputFormat::Markdown,
+        BuildSelectedItemTaskInstruction(request)));
+    result.layers.push_back(GeneratedLayer(
+        PromptLayer::OutputContract,
+        "selected item output contract",
+        PromptInputFormat::Json,
+        BuildSelectedItemOutputContractJson()));
 
     result.ok = result.issues.empty();
     return result;

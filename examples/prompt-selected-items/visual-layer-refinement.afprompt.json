@@ -1,0 +1,34 @@
+{
+  "format": "artforge.prompt.package",
+  "schemaVersion": 1,
+  "request": {
+    "operation": "refine visual layer intent",
+    "domain": "visualArt",
+    "selectedItemType": "visualLayer",
+    "selectedItemIndex": 0
+  },
+  "layers": [
+    {
+      "role": "selected domain item",
+      "format": "json",
+      "content": {
+        "format": "artforge.prompt.selectedDomainItem",
+        "schemaVersion": 1,
+        "work": {
+          "id": "work.visual.sample",
+          "path": "examples/work-domains/visual-art.afwork.json",
+          "domain": "visualArt"
+        },
+        "selection": {
+          "type": "visualLayer",
+          "id": "viewer.foreground",
+          "index": 0,
+          "layerType": "viewer",
+          "label": "Foreground figure",
+          "intent": "Readable silhouette and first focal point"
+        }
+      }
+    }
+  ],
+  "aiPolicy": "Do not call an AI service. AI output must be JSON and validated before import."
+}

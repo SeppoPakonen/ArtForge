@@ -81,6 +81,16 @@ struct PromptPackageBuildRequest {
     std::string taskInstruction;
 };
 
+struct SelectedDomainItemPromptRequest {
+    std::filesystem::path workPath;
+    std::string workId;
+    std::string domain;
+    std::string selectedItemType;
+    std::string selectedItemId;
+    int selectedItemIndex{};
+    std::string requestedOperation;
+};
+
 struct PromptPackageBuildResult {
     bool ok{};
     std::vector<PromptLayerEntry> layers;
@@ -99,6 +109,7 @@ std::string_view AiResultHistoryImportOperation();
 std::string_view AiResultReviewRequirement();
 
 PromptPackageBuildResult BuildPromptPackageFromWorkContext(const PromptPackageBuildRequest& request);
+PromptPackageBuildResult BuildPromptPackageFromSelectedDomainItem(const SelectedDomainItemPromptRequest& request);
 std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& result);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{

@@ -1,0 +1,37 @@
+{
+  "format": "artforge.prompt.package",
+  "schemaVersion": 1,
+  "request": {
+    "operation": "repair script block",
+    "domain": "scriptStoryboard",
+    "selectedItemType": "scriptBlock",
+    "selectedItemIndex": 1
+  },
+  "layers": [
+    {
+      "role": "selected domain item",
+      "format": "json",
+      "content": {
+        "format": "artforge.prompt.selectedDomainItem",
+        "schemaVersion": 1,
+        "work": {
+          "id": "work.script.sample",
+          "path": "examples/work-domains/script-storyboard.afwork.json",
+          "domain": "scriptStoryboard"
+        },
+        "selection": {
+          "type": "scriptBlock",
+          "id": "block.opening.dialogue",
+          "index": 1,
+          "sceneId": "scene.opening",
+          "kind": "dialogue",
+          "timeRange": "00:00:12.000-00:00:18.000",
+          "speaker": "Mara",
+          "voice": "controlled",
+          "text": "We only get one clean version of this."
+        }
+      }
+    }
+  ],
+  "aiPolicy": "Do not call an AI service. AI output must be JSON and validated before import."
+}
