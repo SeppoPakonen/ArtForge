@@ -31,27 +31,27 @@ They are references for future UI work, not implemented editor screens yet.
 
 ### Solution scope
 
-![ArtForge solution scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/solution_v1.png)
+![ArtForge solution scope mockup](https://github.com/SeppoPakonen/ArtForge/blob/main/docs/mockup/solution_v1.png?raw=true)
 
 ### Artist scope
 
-![ArtForge artist scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/artist_v1.png)
+![ArtForge artist scope mockup](https://github.com/SeppoPakonen/ArtForge/blob/main/docs/mockup/artist_v1.png?raw=true)
 
 ### Series scope
 
-![ArtForge series scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/series_v1.png)
+![ArtForge series scope mockup](https://github.com/SeppoPakonen/ArtForge/blob/main/docs/mockup/series_v1.png?raw=true)
 
 ### Work scope: lyrics
 
-![ArtForge lyrics work scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/work-lyrics_v1.png)
+![ArtForge lyrics work scope mockup](https://github.com/SeppoPakonen/ArtForge/blob/main/docs/mockup/work-lyrics_v1.png?raw=true)
 
 ### Work scope: visual art
 
-![ArtForge visual art work scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/work-fineart_v1.png)
+![ArtForge visual art work scope mockup](https://github.com/SeppoPakonen/ArtForge/blob/main/docs/mockup/work-fineart_v1.png?raw=true)
 
 ### Work scope: dialogue
 
-![ArtForge dialogue work scope mockup](https://raw.githubusercontent.com/SeppoPakonen/ArtForge/refs/heads/master/docs/mockup/work-dialogue_v1.png)
+![ArtForge dialogue work scope mockup](https://github.com/SeppoPakonen/ArtForge/blob/main/docs/mockup/work-dialogue_v1.png?raw=true)
 
 ## Process model
 
