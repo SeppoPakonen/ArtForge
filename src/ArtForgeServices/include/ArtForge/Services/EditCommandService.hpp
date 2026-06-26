@@ -2,6 +2,7 @@
 
 #include "ArtForge/Services/ServiceResult.hpp"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,16 @@ struct EditCommandResult {
     DirtyState dirtyState;
 };
 
+struct SaveWorkDocumentRequest {
+    std::filesystem::path path;
+    DirtyState dirtyState;
+};
+
+struct SaveWorkDocumentResult {
+    ServiceCommandResult command;
+    DirtyState dirtyState;
+};
+
 EditCommand MakeReplaceTextCommand(
     std::string commandId,
     EditTarget target,
@@ -80,5 +91,6 @@ std::string DescribeEditOperation(EditOperation operation);
 std::string DescribeChangeSetState(ChangeSetState state);
 std::string DescribeEditCommandResult(const EditCommandResult& result);
 std::string DescribeEditCommandSmokeExamples();
+SaveWorkDocumentResult SaveWorkDocumentCommand(const SaveWorkDocumentRequest& request);
 
 }

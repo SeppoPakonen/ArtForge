@@ -21,11 +21,15 @@
   "label.path": "Polku",
   "label.scope_type": "Alueen tyyppi",
   "menu.file": "Tiedosto",
+  "menu.file.save": "Tallenna",
   "menu.file.exit": "Lopeta",
   "menu.edit": "Muokkaa",
   "status.bootstrap_ok": "ArtForge-käynnistys OK",
   "status.file_load_failed": "Tiedoston lataus ep\u00e4onnistui",
   "status.file_load_ok": "Tiedoston lataus onnistui",
   "status.no_file_path": "Tiedostopolkua ei annettu",
-  "status.ready": "Valmis"
+  "status.ready": "Valmis",
+  "status.clean": "Ei muutoksia",
+  "status.dirty": "Muutoksia tallentamatta",
+  "status.save_failed": "Tallennus ep\u00e4onnistui"
 }

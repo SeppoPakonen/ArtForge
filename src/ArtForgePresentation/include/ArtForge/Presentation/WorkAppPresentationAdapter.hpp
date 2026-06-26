@@ -13,6 +13,7 @@ struct WorkAppPresentationModel {
     PropertyListModel properties;
     SelectionModel selection;
     PromptPreviewModel promptPreview;
+    DirtyStateModel dirtyState;
 };
 
 WorkAppPresentationModel BuildWorkAppPresentationModel(const std::filesystem::path& workPath);

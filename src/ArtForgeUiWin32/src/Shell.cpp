@@ -8,6 +8,7 @@
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
 #include "ArtForge/Presentation/WorkAppPresentationAdapter.hpp"
+#include "ArtForge/Services/EditCommandService.hpp"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -21,6 +22,7 @@ namespace ArtForge::UiWin32 {
 namespace {
 
 constexpr wchar_t ShellWindowClassName[] = L"ArtForge.ScopeShell.Window";
+constexpr int FileSaveCommand = 1000;
 constexpr int FileExitCommand = 1001;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
@@ -39,6 +41,7 @@ struct ScopeShellState {
     TabControl detailTabs;
     PropertyPanel propertyPanel;
     ArtForge::Presentation::SelectionModel workSelection;
+    ArtForge::Presentation::DirtyStateModel dirtyState;
     HWND statusBar{};
 };
 
@@ -217,6 +220,35 @@ void RecordPresentationCommand(
             state.workSelection.itemIndex,
             std::move(commandName),
             std::move(resultStatus),
+        });
+    (void)status;
+}
+
+void RecordChangeSetCommand(
+    const ScopeShellState& state,
+    ArtForge::History::HistoryOperation operation,
+    std::string commandId,
+    int changeCount,
+    std::string summary)
+{
+    if (state.openedPath.empty()) {
+        return;
+    }
+
+    const auto work = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
+    const auto status = ArtForge::History::RecordChangeSetHistoryEvent(
+        std::filesystem::path{state.openedPath},
+        operation,
+        {
+            work.file.id,
+            std::filesystem::path{state.openedPath}.generic_string(),
+            state.workSelection.domain,
+            state.workSelection.itemType,
+            state.workSelection.itemId,
+            state.workSelection.itemIndex,
+            std::move(commandId),
+            changeCount,
+            std::move(summary),
         });
     (void)status;
 }
@@ -451,11 +483,56 @@ void PopulatePropertyPanel(ScopeShellState& state)
         const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(
             std::filesystem::path{state.openedPath},
             state.workSelection);
+        state.dirtyState = presentation.dirtyState;
         state.propertyPanel.AddGroup(L"Work");
         for (const auto& property : presentation.properties.properties) {
             state.propertyPanel.AddProperty(Utf8ToWide(property.name), Utf8ToWide(property.value));
         }
     }
+}
+
+void SetStatusText(ScopeShellState& state, std::wstring text)
+{
+    state.loadStatusText = std::move(text);
+    if (state.statusBar != nullptr) {
+        SendMessageW(state.statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM>(state.loadStatusText.c_str()));
+    }
+}
+
+void HandleSaveCommand(ScopeShellState& state)
+{
+    if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem) {
+        SetStatusText(state, L"Save is available for work files only.");
+        return;
+    }
+
+    RecordChangeSetCommand(state, ArtForge::History::HistoryOperation::SaveRequested, "save-work-document", 0, "Save requested");
+
+    ArtForge::Services::DirtyState serviceDirty;
+    serviceDirty.isDirty = state.dirtyState.isDirty;
+    serviceDirty.canSave = state.dirtyState.canSave;
+    serviceDirty.path = std::filesystem::path{state.openedPath}.generic_string();
+    serviceDirty.pendingChangeCount = 0;
+
+    const auto result = ArtForge::Services::SaveWorkDocumentCommand({
+        std::filesystem::path{state.openedPath},
+        serviceDirty,
+    });
+
+    state.dirtyState.isDirty = result.dirtyState.isDirty;
+    state.dirtyState.canSave = result.dirtyState.canSave;
+    state.dirtyState.saveFailed = !result.command.status.ok;
+    state.dirtyState.label = result.dirtyState.isDirty ? "Dirty" : "Clean";
+    state.dirtyState.detail = result.command.status.summary;
+    state.loadDetailText = Utf8ToWide(result.command.debugSummary);
+    SetStatusText(state, Utf8ToWide(result.command.status.summary));
+    RecordChangeSetCommand(
+        state,
+        result.command.status.ok ? ArtForge::History::HistoryOperation::SaveSucceeded : ArtForge::History::HistoryOperation::SaveFailed,
+        "save-work-document",
+        result.dirtyState.pendingChangeCount,
+        result.command.status.summary);
+    PopulatePropertyPanel(state);
 }
 
 void HandleWorkDomainSelection(ScopeShellState& state, int rowIndex)
@@ -486,6 +563,7 @@ HMENU CreateShellMenu()
 {
     const auto menu = CreateMenu();
     const auto fileMenu = CreatePopupMenu();
+    AppendMenuW(fileMenu, MF_STRING, FileSaveCommand, L"Save");
     AppendMenuW(fileMenu, MF_STRING, FileExitCommand, L"Exit");
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), L"File");
     return menu;
@@ -591,6 +669,10 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         LayoutChildren(window);
         return 0;
     case WM_COMMAND:
+        if (LOWORD(wParam) == FileSaveCommand) {
+            HandleSaveCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            return 0;
+        }
         if (LOWORD(wParam) == FileExitCommand) {
             DestroyWindow(window);
             return 0;

@@ -172,4 +172,36 @@ std::string DescribeEditCommandSmokeExamples()
     return output.str();
 }
 
+SaveWorkDocumentResult SaveWorkDocumentCommand(const SaveWorkDocumentRequest& request)
+{
+    SaveWorkDocumentResult result;
+    result.dirtyState = request.dirtyState;
+    result.dirtyState.path = request.path.generic_string();
+    result.command.commandName = "save-work-document";
+    result.command.outputPath = request.path.generic_string();
+
+    if (request.path.empty()) {
+        result.command.status = MakeErrorStatus("missing_work_path", "Save requires an opened work file path.");
+        result.command.debugSummary = "Save failed: missing work file path.";
+        result.dirtyState.canSave = false;
+        result.dirtyState.lastSaveError = result.command.status.summary;
+        return result;
+    }
+
+    if (!request.dirtyState.isDirty && request.dirtyState.pendingChangeCount == 0) {
+        result.command.status = MakeOkStatus("No changes to save.");
+        result.command.debugSummary = "Save no-op: document is clean.";
+        result.dirtyState.isDirty = false;
+        result.dirtyState.canSave = false;
+        result.dirtyState.lastSaveError.clear();
+        return result;
+    }
+
+    result.command.status = MakeErrorStatus("save_transaction_not_available", "Dirty save transactions are not available until edits are applied through change sets.");
+    result.command.debugSummary = "Save failed: dirty transaction support is not active.";
+    result.dirtyState.canSave = false;
+    result.dirtyState.lastSaveError = result.command.status.summary;
+    return result;
+}
+
 }

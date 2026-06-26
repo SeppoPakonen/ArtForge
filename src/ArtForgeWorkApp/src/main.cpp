@@ -54,6 +54,11 @@ bool IsRecordChangeSetHistoryCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 11 && std::wstring_view{arguments[1]} == L"--record-change-set-history";
 }
 
+bool IsSaveWorkDocumentCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--save-work-document";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -219,6 +224,27 @@ std::string RecordChangeSetHistory(wchar_t** arguments)
     return output.str();
 }
 
+std::string SaveWorkDocument(int argumentCount, wchar_t** arguments)
+{
+    const bool simulateDirty = argumentCount >= 4 && std::wstring_view{arguments[3]} == L"dirty";
+    ArtForge::Services::DirtyState dirty;
+    dirty.isDirty = simulateDirty;
+    dirty.canSave = simulateDirty;
+    dirty.path = std::filesystem::path{arguments[2]}.generic_string();
+    dirty.pendingChangeCount = simulateDirty ? 1 : 0;
+
+    const auto result = ArtForge::Services::SaveWorkDocumentCommand({
+        std::filesystem::path{arguments[2]},
+        dirty,
+    });
+
+    std::ostringstream output;
+    output << "Save status: " << (result.command.status.ok ? "OK" : "failed") << "\n";
+    output << "Summary: " << result.command.status.summary << "\n";
+    output << "Debug: " << result.command.debugSummary << "\n";
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -255,6 +281,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("History status: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSaveWorkDocumentCommand(argumentCount, arguments)) {
+        const auto result = SaveWorkDocument(argumentCount, arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Save status: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

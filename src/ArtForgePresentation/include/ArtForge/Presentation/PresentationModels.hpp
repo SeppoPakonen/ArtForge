@@ -71,6 +71,15 @@ struct PromptPreviewModel {
     std::vector<std::string> diagnostics;
 };
 
+struct DirtyStateModel {
+    bool isDirty{};
+    bool savePending{};
+    bool saveFailed{};
+    bool canSave{};
+    std::string label;
+    std::string detail;
+};
+
 struct SelectionChangedRequest {
     std::string sourcePath;
     int rowIndex{-1};

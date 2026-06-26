@@ -223,6 +223,21 @@ void AddPromptPreviewProperties(PropertyListModel& properties, const PromptPrevi
     }
 }
 
+DirtyStateModel BuildCleanDirtyState()
+{
+    DirtyStateModel state;
+    state.label = "Clean";
+    state.detail = "No pending changes.";
+    return state;
+}
+
+void AddDirtyStateProperties(PropertyListModel& properties, const DirtyStateModel& dirty)
+{
+    AddProperty(properties, "Dirty state", dirty.label);
+    AddProperty(properties, "Save status", dirty.detail);
+    AddProperty(properties, "Can save", dirty.canSave ? "yes" : "no");
+}
+
 TableModel BuildUnsupportedTable(std::string reason)
 {
     TableModel table;
@@ -283,8 +298,10 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(
     model.properties = BuildBaseProperties(result, workPath);
     model.selection = selection;
     model.promptPreview = BuildPromptPreview(workPath, model.selection);
+    model.dirtyState = BuildCleanDirtyState();
     AddSelectionProperties(model.properties, workPath, model.selection);
     AddPromptPreviewProperties(model.properties, model.promptPreview);
+    AddDirtyStateProperties(model.properties, model.dirtyState);
 
     if (!result.status.ok) {
         model.domainTable = BuildUnsupportedTable(model.status.diagnostics.empty() ? "Work file load failed" : model.status.diagnostics.front());
