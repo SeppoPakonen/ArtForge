@@ -13,8 +13,17 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <ItemGroup><ClInclude Include="include\ArtForge\Presentation\PresentationModels.hpp" /></ItemGroup>
-  <ItemGroup><ClCompile Include="src\PresentationModels.cpp" /></ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\ArtForge\Presentation\PresentationModels.hpp" />
+    <ClInclude Include="include\ArtForge\Presentation\WorkAppPresentationAdapter.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\PresentationModels.cpp" />
+    <ClCompile Include="src\WorkAppPresentationAdapter.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ArtForgeFiles\ArtForgeFiles.vcxproj"><Project>{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}</Project></ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

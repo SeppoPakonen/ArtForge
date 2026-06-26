@@ -4,10 +4,10 @@
 #include "ArtForge/UiWin32/PaneLayout.hpp"
 #include "ArtForge/UiWin32/PropertyPanel.hpp"
 
-#include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
+#include "ArtForge/Presentation/WorkAppPresentationAdapter.hpp"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -371,139 +371,40 @@ std::wstring SummaryText(const ScopeShellState& state)
     return summary;
 }
 
-std::wstring WorkDomainWorkspaceText(std::string_view workDomain)
+void RenderTableModel(ListViewReport& list, const ArtForge::Presentation::TableModel& table)
 {
-    if (workDomain == "lyrics") {
-        return L"Lyrics/music workspace\r\n\r\nTechnical base placeholder\r\nLyric line table placeholder\r\nRule analytics placeholder";
-    }
-    if (workDomain == "visualArt") {
-        return L"Visual art workspace\r\n\r\nViewer layers placeholder\r\nPaint layers placeholder\r\nLayer analytics placeholder";
-    }
-    if (workDomain == "scriptStoryboard") {
-        return L"Script/storyboard workspace\r\n\r\nScene and block list placeholder\r\nDialogue/action placeholder\r\nStoryboard visualization placeholder";
-    }
-    if (workDomain.empty()) {
-        return L"Unsupported work domain\r\n\r\nNo workDomain field was found in this work file.";
-    }
-    return L"Unsupported work domain\r\n\r\nDomain value is not supported by the placeholder workspace yet.";
-}
-
-void PopulateUnsupportedDomainList(ScopeShellState& state, std::wstring_view reason)
-{
-    state.domainList.AddColumn(0, L"Status", 140);
-    state.domainList.AddColumn(1, L"Detail", 520);
-    state.domainList.AddRow({L"Work domain", reason});
-}
-
-void PopulateLyricsDomainList(ScopeShellState& state)
-{
-    const auto model = ArtForge::Files::LoadLyricsWorkViewModel(std::filesystem::path{state.openedPath});
-    if (!model.status.ok) {
-        PopulateUnsupportedDomainList(state, L"Lyrics view model failed to load");
-        return;
+    for (std::size_t index = 0; index < table.columns.size(); ++index) {
+        list.AddColumn(static_cast<int>(index), Utf8ToWide(table.columns[index].label), index == 0 ? 160 : 240);
     }
 
-    state.domainList.AddColumn(0, L"Time", 140);
-    state.domainList.AddColumn(1, L"Section", 140);
-    state.domainList.AddColumn(2, L"Text", 360);
-    state.domainList.AddColumn(3, L"Evaluation", 220);
+    for (const auto& row : table.rows) {
+        std::vector<std::wstring> wideCells;
+        wideCells.reserve(row.cells.size());
+        for (const auto& cell : row.cells) {
+            wideCells.push_back(Utf8ToWide(cell));
+        }
 
-    for (const auto& line : model.lyricLines) {
-        state.domainList.AddRow({
-            Utf8ToWide(line.timeRange),
-            Utf8ToWide(line.sectionId),
-            Utf8ToWide(line.text),
-            Utf8ToWide(line.evaluationSummary),
-        });
-    }
-}
-
-void PopulateVisualArtDomainList(ScopeShellState& state)
-{
-    const auto model = ArtForge::Files::LoadVisualArtWorkViewModel(std::filesystem::path{state.openedPath});
-    if (!model.status.ok) {
-        PopulateUnsupportedDomainList(state, L"Visual art view model failed to load");
-        return;
-    }
-
-    state.domainList.AddColumn(0, L"Layer", 160);
-    state.domainList.AddColumn(1, L"Type", 100);
-    state.domainList.AddColumn(2, L"Label", 220);
-    state.domainList.AddColumn(3, L"Intent", 420);
-
-    for (const auto& layer : model.viewerLayers) {
-        state.domainList.AddRow({
-            Utf8ToWide(layer.id),
-            Utf8ToWide(layer.layerType),
-            Utf8ToWide(layer.label),
-            Utf8ToWide(layer.intent),
-        });
-    }
-    for (const auto& layer : model.paintLayers) {
-        state.domainList.AddRow({
-            Utf8ToWide(layer.id),
-            Utf8ToWide(layer.layerType),
-            Utf8ToWide(layer.label),
-            Utf8ToWide(layer.intent),
-        });
-    }
-}
-
-void PopulateScriptStoryboardDomainList(ScopeShellState& state)
-{
-    const auto model = ArtForge::Files::LoadScriptStoryboardWorkViewModel(std::filesystem::path{state.openedPath});
-    if (!model.status.ok) {
-        PopulateUnsupportedDomainList(state, L"Script/storyboard view model failed to load");
-        return;
-    }
-
-    state.domainList.AddColumn(0, L"Time", 140);
-    state.domainList.AddColumn(1, L"Scene / block", 180);
-    state.domainList.AddColumn(2, L"Speaker / type", 160);
-    state.domainList.AddColumn(3, L"Text", 420);
-
-    for (const auto& scene : model.scenes) {
-        state.domainList.AddRow({
-            Utf8ToWide(scene.timeRange),
-            Utf8ToWide(scene.id),
-            L"scene",
-            Utf8ToWide(scene.title),
-        });
-    }
-    for (const auto& block : model.blocks) {
-        const auto speakerOrType = block.speaker.empty() ? block.kind : block.speaker;
-        state.domainList.AddRow({
-            Utf8ToWide(block.timeRange),
-            Utf8ToWide(block.id),
-            Utf8ToWide(speakerOrType),
-            Utf8ToWide(block.text),
-        });
+        std::vector<std::wstring_view> views;
+        views.reserve(wideCells.size());
+        for (const auto& cell : wideCells) {
+            views.push_back(cell);
+        }
+        list.AddRow(views);
     }
 }
 
 void PopulateWorkDomainList(ScopeShellState& state)
 {
     if (state.openedPath.empty()) {
-        PopulateUnsupportedDomainList(state, L"No work file path provided");
+        ArtForge::Presentation::TableModel table;
+        table.columns = {{"status", "Status"}, {"detail", "Detail"}};
+        table.rows.push_back({"missing-path", {"Work file", "No work file path provided"}});
+        RenderTableModel(state.domainList, table);
         return;
     }
 
-    const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
-    if (!result.status.ok) {
-        PopulateUnsupportedDomainList(state, L"Work file load failed");
-        return;
-    }
-
-    if (result.file.workDomain == "lyrics") {
-        PopulateLyricsDomainList(state);
-    } else if (result.file.workDomain == "visualArt") {
-        PopulateVisualArtDomainList(state);
-    } else if (result.file.workDomain == "scriptStoryboard") {
-        PopulateScriptStoryboardDomainList(state);
-    } else {
-        const auto reason = result.file.workDomain.empty() ? std::wstring{L"Missing workDomain"} : L"Unsupported workDomain: " + Utf8ToWide(result.file.workDomain);
-        PopulateUnsupportedDomainList(state, reason);
-    }
+    const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(std::filesystem::path{state.openedPath});
+    RenderTableModel(state.domainList, presentation.domainTable);
 }
 
 void PopulatePropertyPanel(ScopeShellState& state)
@@ -519,11 +420,11 @@ void PopulatePropertyPanel(ScopeShellState& state)
     state.propertyPanel.AddProperty(L"Load detail", state.loadDetailText);
 
     if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
-        const auto result = ArtForge::Files::LoadWorkScopeFile(std::filesystem::path{state.openedPath});
-        const auto domain = result.file.workDomain.empty() ? std::wstring{L"(unspecified)"} : Utf8ToWide(result.file.workDomain);
-        state.propertyPanel.AddGroup(L"Work domain");
-        state.propertyPanel.AddProperty(L"Work domain", domain);
-        state.propertyPanel.AddProperty(L"Workspace", WorkDomainWorkspaceText(result.file.workDomain));
+        const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(std::filesystem::path{state.openedPath});
+        state.propertyPanel.AddGroup(L"Work");
+        for (const auto& property : presentation.properties.properties) {
+            state.propertyPanel.AddProperty(Utf8ToWide(property.name), Utf8ToWide(property.value));
+        }
     }
 }
 
