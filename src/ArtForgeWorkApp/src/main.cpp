@@ -71,6 +71,11 @@ bool IsValidateAiResultCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--validate-ai-result";
 }
 
+bool IsImportAiResultPendingCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 7 && std::wstring_view{arguments[1]} == L"--import-ai-result-pending";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -322,6 +327,60 @@ std::string ValidateAiResult(wchar_t** arguments)
         ArtForge::Prompting::ValidateAiResultJsonText(buffer.str()));
 }
 
+std::string ImportAiResultPending(wchar_t** arguments)
+{
+    const auto resultPath = std::filesystem::path{arguments[2]};
+    const auto expectedWorkPath = std::filesystem::path{arguments[3]};
+    const auto expectedDomain = WideToUtf8(arguments[4]);
+    const auto expectedItemType = WideToUtf8(arguments[5]);
+    const auto expectedItemId = WideToUtf8(arguments[6]);
+
+    std::ifstream input{resultPath};
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    auto validation = ArtForge::Prompting::ValidateAiResultJsonText(buffer.str());
+
+    std::ostringstream output;
+    if (!validation.ok) {
+        output << "Import status: failed\n";
+        output << ArtForge::Prompting::DescribeAiResultValidation(validation);
+        return output.str();
+    }
+
+    std::vector<ArtForge::Prompting::PendingSuggestion> accepted;
+    for (auto suggestion : validation.pendingSuggestions) {
+        suggestion.promptPackagePath = resultPath;
+        if (suggestion.target.workPath.generic_string() != expectedWorkPath.generic_string()
+            || suggestion.target.domain != expectedDomain
+            || suggestion.target.itemType != expectedItemType
+            || suggestion.target.itemId != expectedItemId) {
+            output << "Import status: failed\n";
+            output << "Diagnostic: AI result target does not match expected selected item.\n";
+            output << "Expected: " << expectedWorkPath.generic_string() << " " << expectedDomain << "/" << expectedItemType << "#" << expectedItemId << "\n";
+            output << "Actual: " << suggestion.target.workPath.generic_string() << " " << suggestion.target.domain << "/" << suggestion.target.itemType << "#" << suggestion.target.itemId << "\n";
+            return output.str();
+        }
+        accepted.push_back(std::move(suggestion));
+    }
+
+    const auto outputPath = expectedWorkPath.parent_path() / "pending-suggestions.jsonl";
+    std::ofstream pending{outputPath, std::ios::app};
+    if (!pending) {
+        output << "Import status: failed\n";
+        output << "Diagnostic: could not open pending suggestion file for append.\n";
+        return output.str();
+    }
+    for (const auto& suggestion : accepted) {
+        pending << ArtForge::Prompting::SerializePendingSuggestionJsonLine(suggestion) << "\n";
+    }
+
+    output << "Import status: OK\n";
+    output << "Pending suggestions: " << accepted.size() << "\n";
+    output << "Output: " << outputPath.generic_string() << "\n";
+    output << "Applied changes: 0\n";
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -376,6 +435,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("AI result validation: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsImportAiResultPendingCommand(argumentCount, arguments)) {
+        const auto result = ImportAiResultPending(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Import status: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

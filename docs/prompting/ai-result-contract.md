@@ -66,3 +66,11 @@ After validation, ArtForge may represent a candidate as a pending suggestion:
 
 Pending suggestions are review state. They are not applied changes. Applying a
 suggestion must go through edit command, change-set, history, and save logic.
+
+## Local Import
+
+The initial import path reads a local AI result JSON file, validates required
+sections, checks that the result target matches the expected selected work item,
+and appends pending suggestions to `pending-suggestions.jsonl` beside the work
+file. The import path records reviewable pending data only; it does not edit or
+save the work file.

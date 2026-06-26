@@ -676,6 +676,12 @@ std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& resu
 AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText)
 {
     AiResultValidationResult result;
+    if (jsonText.size() >= 3
+        && static_cast<unsigned char>(jsonText[0]) == 0xef
+        && static_cast<unsigned char>(jsonText[1]) == 0xbb
+        && static_cast<unsigned char>(jsonText[2]) == 0xbf) {
+        jsonText.remove_prefix(3);
+    }
     const auto first = jsonText.find_first_not_of(" \t\r\n");
     const auto last = jsonText.find_last_not_of(" \t\r\n");
     if (first == std::string_view::npos || jsonText[first] != '{' || jsonText[last] != '}') {
@@ -734,6 +740,36 @@ std::string DescribeAiResultValidation(const AiResultValidationResult& result)
         output << "Target: " << suggestion.target.domain << "/" << suggestion.target.itemType << "#" << suggestion.target.itemId << "." << suggestion.target.field << "\n";
         output << "Proposed text: " << suggestion.proposedText << "\n";
     }
+    return output.str();
+}
+
+std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggestion)
+{
+    std::ostringstream output;
+    output << "{";
+    output << "\"id\":" << Quote(suggestion.suggestionId) << ",";
+    output << "\"prompt_package_id\":" << Quote(suggestion.promptPackageId) << ",";
+    output << "\"prompt_package_path\":" << Quote(suggestion.promptPackagePath.generic_string()) << ",";
+    output << "\"status\":" << Quote(ToDisplayName(suggestion.status)) << ",";
+    output << "\"target\":{";
+    output << "\"work_path\":" << Quote(suggestion.target.workPath.generic_string()) << ",";
+    output << "\"domain\":" << Quote(suggestion.target.domain) << ",";
+    output << "\"item_type\":" << Quote(suggestion.target.itemType) << ",";
+    output << "\"item_id\":" << Quote(suggestion.target.itemId) << ",";
+    output << "\"item_index\":" << suggestion.target.itemIndex << ",";
+    output << "\"field\":" << Quote(suggestion.target.field);
+    output << "},";
+    output << "\"proposed_text\":" << Quote(suggestion.proposedText) << ",";
+    output << "\"rationale\":" << Quote(suggestion.rationale) << ",";
+    output << "\"diagnostics\":[";
+    for (std::size_t index = 0; index < suggestion.diagnostics.size(); ++index) {
+        output << Quote(suggestion.diagnostics[index]);
+        if (index + 1 < suggestion.diagnostics.size()) {
+            output << ",";
+        }
+    }
+    output << "]";
+    output << "}";
     return output.str();
 }
 

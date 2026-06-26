@@ -146,6 +146,7 @@ PromptPackageBuildResult BuildPromptPackageFromSelectedDomainItem(const Selected
 std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& result);
 AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText);
 std::string DescribeAiResultValidation(const AiResultValidationResult& result);
+std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggestion);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},
