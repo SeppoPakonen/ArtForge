@@ -177,6 +177,9 @@ a full editor. `ArtForgeCore` owns shared shell descriptors for:
 
 Each executable opens a minimal native Win32 window showing its application
 name, expected scope, optional path argument, and `ArtForge bootstrap OK`.
+The Win32 shell also includes a simple left navigation tree that shows the
+current scope, opened path, load status, and parent or child references when
+available from the loaded scope file or solution graph.
 
 The shell model also preserves future navigation concepts without implementing
 them as GUI views yet. Solution shells reserve artists, projects, missing files,

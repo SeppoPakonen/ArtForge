@@ -18,12 +18,15 @@ constexpr wchar_t ShellWindowClassName[] = L"ArtForge.ScopeShell.Window";
 constexpr int FileExitCommand = 1001;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
+constexpr int NavigationTreeId = 2003;
+constexpr int NavigationWidth = 280;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
     std::wstring openedPath;
     std::wstring loadStatusText;
     std::wstring loadDetailText;
+    HWND navigationTree{};
     HWND summaryControl{};
     HWND statusBar{};
 };
@@ -94,6 +97,28 @@ std::wstring FirstIssueText(const ArtForge::Files::ScopeFileLoadStatus& status)
     return Utf8ToWide(status.issues.front().message);
 }
 
+HTREEITEM InsertTreeItem(HWND tree, HTREEITEM parent, std::wstring text)
+{
+    TVINSERTSTRUCTW insert{};
+    insert.hParent = parent;
+    insert.hInsertAfter = TVI_LAST;
+    insert.item.mask = TVIF_TEXT;
+    insert.item.pszText = text.data();
+    return TreeView_InsertItem(tree, &insert);
+}
+
+std::wstring ReferenceText(std::wstring_view label, const ArtForge::Files::ScopeFileReference& reference)
+{
+    std::wstring text{label};
+    text += L": ";
+    text += Utf8ToWide(reference.id);
+    if (!reference.path.empty()) {
+        text += L" -> ";
+        text += Utf8ToWide(reference.path);
+    }
+    return text;
+}
+
 ArtForge::Files::ScopeFileLoadStatus LoadScopeFileStatus(
     ArtForge::Core::ScopeKind scope,
     const std::filesystem::path& path)
@@ -119,6 +144,132 @@ ArtForge::Files::ScopeFileLoadStatus LoadScopeFileStatus(
     }
 
     return {false, {{"unknown scope type"}}};
+}
+
+void PopulateSolutionNavigation(HWND tree, const std::filesystem::path& path)
+{
+    const auto graph = ArtForge::Files::LoadSolutionProjectGraph(path);
+    const auto root = InsertTreeItem(tree, TVI_ROOT, L"Current scope: solution");
+    InsertTreeItem(tree, root, L"Path: " + path.wstring());
+    InsertTreeItem(tree, root, L"Load status: " + std::wstring{ArtForge::Files::FlattenGraphIssues(graph).empty() ? L"loaded" : L"has issues"});
+
+    const auto artists = InsertTreeItem(tree, root, L"Artists");
+    if (graph.artists.empty()) {
+        InsertTreeItem(tree, artists, L"(none)");
+    }
+    for (const auto& artist : graph.artists) {
+        const auto artistNode = InsertTreeItem(tree, artists, Utf8ToWide(artist.file.displayName.empty() ? artist.reference.id : artist.file.displayName));
+        InsertTreeItem(tree, artistNode, L"Path: " + artist.path.wstring());
+        for (const auto& project : artist.projects) {
+            const auto projectNode = InsertTreeItem(tree, artistNode, Utf8ToWide(project.file.displayName.empty() ? project.reference.id : project.file.displayName));
+            InsertTreeItem(tree, projectNode, L"Path: " + project.path.wstring());
+            for (const auto& work : project.works) {
+                InsertTreeItem(tree, projectNode, Utf8ToWide(work.file.displayName.empty() ? work.reference.id : work.file.displayName));
+            }
+        }
+    }
+
+    const auto projects = InsertTreeItem(tree, root, L"Solution projects");
+    if (graph.projects.empty()) {
+        InsertTreeItem(tree, projects, L"(none)");
+    }
+    for (const auto& project : graph.projects) {
+        const auto projectNode = InsertTreeItem(tree, projects, Utf8ToWide(project.file.displayName.empty() ? project.reference.id : project.file.displayName));
+        for (const auto& work : project.works) {
+            InsertTreeItem(tree, projectNode, Utf8ToWide(work.file.displayName.empty() ? work.reference.id : work.file.displayName));
+        }
+    }
+
+    TreeView_Expand(tree, root, TVE_EXPAND);
+    TreeView_Expand(tree, artists, TVE_EXPAND);
+    TreeView_Expand(tree, projects, TVE_EXPAND);
+}
+
+void PopulateDirectScopeNavigation(HWND tree, const ScopeShellState& state)
+{
+    const auto root = InsertTreeItem(tree, TVI_ROOT, L"Current scope: " + std::wstring{ArtForge::Core::ToDisplayName(state.descriptor.scope)});
+    InsertTreeItem(tree, root, L"Path: " + (state.openedPath.empty() ? std::wstring{L"(none)"} : state.openedPath));
+    InsertTreeItem(tree, root, L"Load status: " + state.loadStatusText);
+
+    if (state.openedPath.empty()) {
+        InsertTreeItem(tree, root, L"References: unavailable until a file is opened");
+        TreeView_Expand(tree, root, TVE_EXPAND);
+        return;
+    }
+
+    const std::filesystem::path path{state.openedPath};
+    switch (state.descriptor.scope) {
+    case ArtForge::Core::ScopeKind::Artist: {
+        const auto result = ArtForge::Files::LoadArtistScopeFile(path);
+        const auto projects = InsertTreeItem(tree, root, L"Projects");
+        if (result.file.projects.empty()) {
+            InsertTreeItem(tree, projects, L"(none)");
+        }
+        for (const auto& project : result.file.projects) {
+            InsertTreeItem(tree, projects, ReferenceText(L"project", project));
+        }
+        TreeView_Expand(tree, projects, TVE_EXPAND);
+        break;
+    }
+    case ArtForge::Core::ScopeKind::Series: {
+        const auto result = ArtForge::Files::LoadSeriesScopeFile(path);
+        const auto parent = InsertTreeItem(tree, root, L"Parent");
+        if (result.file.artist) {
+            InsertTreeItem(tree, parent, ReferenceText(L"artist", *result.file.artist));
+        } else {
+            InsertTreeItem(tree, parent, L"(none)");
+        }
+        const auto works = InsertTreeItem(tree, root, L"Ordered works");
+        if (result.file.works.empty()) {
+            InsertTreeItem(tree, works, L"(none)");
+        }
+        for (const auto& work : result.file.works) {
+            InsertTreeItem(tree, works, ReferenceText(L"work", work));
+        }
+        TreeView_Expand(tree, parent, TVE_EXPAND);
+        TreeView_Expand(tree, works, TVE_EXPAND);
+        break;
+    }
+    case ArtForge::Core::ScopeKind::WorkItem: {
+        const auto result = ArtForge::Files::LoadWorkScopeFile(path);
+        const auto parent = InsertTreeItem(tree, root, L"Parent");
+        if (result.file.series) {
+            InsertTreeItem(tree, parent, ReferenceText(L"series", *result.file.series));
+        } else {
+            InsertTreeItem(tree, parent, L"(none)");
+        }
+        const auto sources = InsertTreeItem(tree, root, L"Sources");
+        if (result.file.sources.empty()) {
+            InsertTreeItem(tree, sources, L"(none)");
+        }
+        for (const auto& source : result.file.sources) {
+            InsertTreeItem(tree, sources, ReferenceText(L"source", source));
+        }
+        if (result.file.historyPath) {
+            InsertTreeItem(tree, root, L"History: " + Utf8ToWide(*result.file.historyPath));
+        }
+        TreeView_Expand(tree, parent, TVE_EXPAND);
+        TreeView_Expand(tree, sources, TVE_EXPAND);
+        break;
+    }
+    case ArtForge::Core::ScopeKind::Solution:
+    case ArtForge::Core::ScopeKind::Fragment:
+        InsertTreeItem(tree, root, L"References: not available for this scope");
+        break;
+    }
+
+    TreeView_Expand(tree, root, TVE_EXPAND);
+}
+
+void PopulateNavigationTree(HWND tree, const ScopeShellState& state)
+{
+    TreeView_DeleteAllItems(tree);
+    if (!state.openedPath.empty() && state.descriptor.scope == ArtForge::Core::ScopeKind::Solution) {
+        PopulateSolutionNavigation(tree, std::filesystem::path{state.openedPath});
+        return;
+    }
+
+    PopulateDirectScopeNavigation(tree, state);
 }
 
 void UpdateFileStatus(ScopeShellState& state)
@@ -190,12 +341,22 @@ void LayoutChildren(HWND window)
         statusHeight = statusRect.bottom - statusRect.top;
     }
 
+    if (state->navigationTree != nullptr) {
+        MoveWindow(
+            state->navigationTree,
+            12,
+            12,
+            NavigationWidth,
+            client.bottom - client.top - statusHeight - 24,
+            TRUE);
+    }
+
     if (state->summaryControl != nullptr) {
         MoveWindow(
             state->summaryControl,
+            12 + NavigationWidth + 12,
             12,
-            12,
-            client.right - client.left - 24,
+            client.right - client.left - NavigationWidth - 36,
             client.bottom - client.top - statusHeight - 24,
             TRUE);
     }
@@ -208,6 +369,21 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         const auto create = reinterpret_cast<CREATESTRUCTW*>(lParam);
         const auto state = reinterpret_cast<ScopeShellState*>(create->lpCreateParams);
         SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
+
+        state->navigationTree = CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            WC_TREEVIEWW,
+            L"",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS,
+            0,
+            0,
+            0,
+            0,
+            window,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(NavigationTreeId)),
+            create->hInstance,
+            nullptr);
+        PopulateNavigationTree(state->navigationTree, *state);
 
         const auto summary = SummaryText(*state);
         state->summaryControl = CreateWindowExW(
@@ -319,7 +495,7 @@ int RunScopeShell(
 {
     INITCOMMONCONTROLSEX commonControls{};
     commonControls.dwSize = sizeof(commonControls);
-    commonControls.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES;
+    commonControls.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES | ICC_TREEVIEW_CLASSES;
     InitCommonControlsEx(&commonControls);
 
     RegisterShellWindowClass(instance);
