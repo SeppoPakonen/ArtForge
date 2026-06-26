@@ -24,6 +24,10 @@ views. See [docs/architecture/002-gui-stack.md](docs/architecture/002-gui-stack.
 Views must render UI-neutral presentation models through presentation adapters;
 they must not interpret domain models directly. See
 [docs/architecture/004-presentation-adapter-architecture.md](docs/architecture/004-presentation-adapter-architecture.md).
+Editing is command-driven: views send edit commands through presentation
+adapters and application services, and never mutate loaded domain or file state
+directly. See
+[docs/architecture/006-edit-command-and-change-set-boundaries.md](docs/architecture/006-edit-command-and-change-set-boundaries.md).
 The shared `ArtForgeUiWin32` module now provides the minimal native shell
 foundation used by the scope applications.
 
