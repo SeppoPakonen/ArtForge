@@ -93,3 +93,12 @@ Blocker:
 
 The formatted string is only for logs and early diagnostics. Later UI can render
 the structured diagnostic fields directly.
+
+`EvaluatePressureDiagnostics` performs a small direct pass over selected pressure
+packages. It can report missing required dependencies, present blockers, enabled
+flag conflicts, required slots that are not provided by any selected package, and
+simple two-package circular `requires` cycles. It is not a solver and does not
+choose automatic resolutions.
+
+Sample diagnostic output is stored in
+[sample-diagnostics.txt](sample-diagnostics.txt).

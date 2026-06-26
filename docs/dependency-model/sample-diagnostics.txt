@@ -1,0 +1,6 @@
+[error] missing dependency for live-solo-performance: singable-range is missing: melody must stay within the artist's reliable live range
+[error] missing dependency for live-solo-performance: portable-instrumentation is missing: arrangement must work without unavailable collaborators
+[error] blocker for live-solo-performance: studio-only-layering blocks this package: dense layered parts would block a solo live version
+[error] flag conflict for live-solo-performance: solo_performer conflicts with studio_layering: dense studio-only layering conflicts with a solo performance flag
+[warning] missing slot for live-solo-performance: lead_performer is missing: live solo setup needs one compatible performer slot
+[error] circular dependency for cycle-a: cycle-a directly requires cycle-b, and cycle-b directly requires cycle-a

@@ -1,8 +1,63 @@
 #include "ArtForge/Deps/PressureModel.hpp"
 
+#include <algorithm>
+#include <set>
 #include <string>
 
 namespace ArtForge::Deps {
+
+namespace {
+
+bool ContainsPackageId(const std::vector<PressurePackage>& packages, const PressurePackageId& packageId)
+{
+    return std::any_of(packages.begin(), packages.end(), [&](const PressurePackage& package) {
+        return package.id.value == packageId.value;
+    });
+}
+
+bool HasEnabledFlag(const PressurePackage& package, std::string_view flagName)
+{
+    return std::any_of(package.flags.begin(), package.flags.end(), [&](const PressureFlag& flag) {
+        return flag.name == flagName && flag.enabled;
+    });
+}
+
+std::set<std::string> ProvidedSlotNames(const std::vector<PressurePackage>& packages)
+{
+    std::set<std::string> names;
+    for (const auto& package : packages) {
+        for (const auto& slot : package.slots) {
+            names.insert(slot.name);
+        }
+    }
+    return names;
+}
+
+bool HasDirectRequiresCycle(const PressurePackage& package, const PressurePackage& dependencyPackage)
+{
+    return std::any_of(package.dependencies.begin(), package.dependencies.end(), [&](const PressureDependency& dependency) {
+        return dependency.relation == DependencyRelation::Requires && dependency.packageId.value == dependencyPackage.id.value;
+    }) && std::any_of(dependencyPackage.dependencies.begin(), dependencyPackage.dependencies.end(), [&](const PressureDependency& dependency) {
+        return dependency.relation == DependencyRelation::Requires && dependency.packageId.value == package.id.value;
+    });
+}
+
+void AddDiagnostic(
+    std::vector<PressureDiagnostic>& diagnostics,
+    DiagnosticSeverity severity,
+    DiagnosticCategory category,
+    const PressurePackageId& packageId,
+    std::string message)
+{
+    diagnostics.push_back({
+        severity,
+        category,
+        packageId,
+        std::move(message),
+    });
+}
+
+}
 
 std::string_view PressureModelName()
 {
@@ -166,6 +221,132 @@ std::string FormatDiagnosticMessage(const PressureDiagnostic& diagnostic)
     return formatted;
 }
 
+std::vector<PressureDiagnostic> EvaluatePressureDiagnostics(const std::vector<PressurePackage>& packages)
+{
+    std::vector<PressureDiagnostic> diagnostics;
+    const auto providedSlots = ProvidedSlotNames(packages);
+
+    for (const auto& package : packages) {
+        for (const auto& dependency : package.dependencies) {
+            if (dependency.relation == DependencyRelation::Requires && !ContainsPackageId(packages, dependency.packageId)) {
+                AddDiagnostic(
+                    diagnostics,
+                    DiagnosticSeverity::Error,
+                    DiagnosticCategory::MissingDependency,
+                    package.id,
+                    dependency.packageId.value + " is missing: " + dependency.reason);
+            }
+
+            if (dependency.relation == DependencyRelation::ConflictsWith && ContainsPackageId(packages, dependency.packageId)) {
+                AddDiagnostic(
+                    diagnostics,
+                    DiagnosticSeverity::Error,
+                    DiagnosticCategory::FlagConflict,
+                    package.id,
+                    dependency.packageId.value + " conflicts with selected package: " + dependency.reason);
+            }
+        }
+
+        for (const auto& blocker : package.blockers) {
+            if (ContainsPackageId(packages, blocker.packageId)) {
+                AddDiagnostic(
+                    diagnostics,
+                    DiagnosticSeverity::Error,
+                    DiagnosticCategory::Blocker,
+                    package.id,
+                    blocker.packageId.value + " blocks this package: " + blocker.reason);
+            }
+        }
+
+        for (const auto& conflict : package.flagConflicts) {
+            if (HasEnabledFlag(package, conflict.firstFlag) && HasEnabledFlag(package, conflict.secondFlag)) {
+                AddDiagnostic(
+                    diagnostics,
+                    DiagnosticSeverity::Error,
+                    DiagnosticCategory::FlagConflict,
+                    package.id,
+                    conflict.firstFlag + " conflicts with " + conflict.secondFlag + ": " + conflict.reason);
+            }
+        }
+
+        for (const auto& requiredSlot : package.requiredSlots) {
+            if (providedSlots.find(requiredSlot.slotName) == providedSlots.end()) {
+                AddDiagnostic(
+                    diagnostics,
+                    DiagnosticSeverity::Warning,
+                    DiagnosticCategory::MissingSlot,
+                    package.id,
+                    requiredSlot.slotName + " is missing: " + requiredSlot.reason);
+            }
+        }
+    }
+
+    for (std::size_t firstIndex = 0; firstIndex < packages.size(); ++firstIndex) {
+        for (std::size_t secondIndex = firstIndex + 1; secondIndex < packages.size(); ++secondIndex) {
+            if (HasDirectRequiresCycle(packages[firstIndex], packages[secondIndex])) {
+                AddDiagnostic(
+                    diagnostics,
+                    DiagnosticSeverity::Error,
+                    DiagnosticCategory::CircularDependency,
+                    packages[firstIndex].id,
+                    packages[firstIndex].id.value + " directly requires " + packages[secondIndex].id.value
+                        + ", and " + packages[secondIndex].id.value + " directly requires " + packages[firstIndex].id.value);
+            }
+        }
+    }
+
+    return diagnostics;
+}
+
+std::vector<std::string> SamplePressureDiagnosticOutput()
+{
+    PressurePackage liveRequirement = LiveSoloPerformanceRequirementExample();
+    liveRequirement.flags.push_back({"studio_layering", true});
+    liveRequirement.requiredSlots.push_back({"lead_performer", "live solo setup needs one compatible performer slot"});
+
+    PressurePackage studioOnlyLayering{
+        {"studio-only-layering"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+    };
+
+    PressurePackage cycleA{
+        {"cycle-a"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {{{"cycle-b"}, DependencyRelation::Requires, "sample direct cycle"}},
+        {},
+        {},
+    };
+
+    PressurePackage cycleB{
+        {"cycle-b"},
+        PackageKind::CreativeRequirement,
+        {"1.0"},
+        {},
+        {},
+        {},
+        {{{"cycle-a"}, DependencyRelation::Requires, "sample direct cycle"}},
+        {},
+        {},
+    };
+
+    std::vector<std::string> formatted;
+    for (const auto& diagnostic : EvaluatePressureDiagnostics({liveRequirement, studioOnlyLayering, cycleA, cycleB})) {
+        formatted.push_back(FormatDiagnosticMessage(diagnostic));
+    }
+    return formatted;
+}
+
 FlagExample LyricsLowFrictionPolicyFlagExample()
 {
     return {
@@ -195,11 +376,17 @@ PressurePackage LiveSoloPerformanceRequirementExample()
             {"arrangement", "portable arrangement"},
         },
         {
+            {"lead_performer", "live solo setup needs one compatible performer slot"},
+        },
+        {
             {{"singable-range"}, DependencyRelation::Requires, "melody must stay within the artist's reliable live range"},
             {{"portable-instrumentation"}, DependencyRelation::Requires, "arrangement must work without unavailable collaborators"},
         },
         {
             {{"studio-only-layering"}, "dense layered parts would block a solo live version"},
+        },
+        {
+            {"solo_performer", "studio_layering", "dense studio-only layering conflicts with a solo performance flag"},
         },
     };
 }
@@ -220,12 +407,16 @@ PressurePackage LowCostMusicVideoRequirementExample()
             {"continuity", "edit-friendly continuity"},
         },
         {
+            {"location_plan", "low-cost production needs an explicit location plan slot"},
+        },
+        {
             {{"few-location-plan"}, DependencyRelation::Requires, "concept must fit a small number of locations"},
             {{"daylight-availability"}, DependencyRelation::Requires, "shooting plan assumes available daylight"},
         },
         {
             {{"licensed-prop-dependency"}, "licensed or rented props conflict with the low-cost constraint"},
         },
+        {},
     };
 }
 
@@ -245,6 +436,10 @@ PressurePackage AlbumArcPressureRequirementExample()
             {"work_order", "compatible ordered works"},
         },
         {
+            {"opening_work", "series arc needs one work assigned to the opening role"},
+            {"closing_work", "series arc needs one work assigned to the closing role"},
+        },
+        {
             {{"opening-contrast"}, DependencyRelation::Requires, "first work must establish contrast for the arc"},
             {{"midpoint-escalation"}, DependencyRelation::Requires, "middle works must raise pressure"},
             {{"closing-resolution"}, DependencyRelation::Requires, "final work must resolve selected pressures"},
@@ -252,6 +447,7 @@ PressurePackage AlbumArcPressureRequirementExample()
         {
             {{"flat-track-order"}, "an order without contrast blocks the intended arc"},
         },
+        {},
     };
 }
 

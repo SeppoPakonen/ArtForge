@@ -75,6 +75,11 @@ struct PressureSlot {
     std::string requiredRole;
 };
 
+struct PressureSlotRequirement {
+    std::string slotName;
+    std::string reason;
+};
+
 struct PressureDependency {
     PressurePackageId packageId;
     DependencyRelation relation{};
@@ -83,6 +88,12 @@ struct PressureDependency {
 
 struct PressureBlocker {
     PressurePackageId packageId;
+    std::string reason;
+};
+
+struct PressureFlagConflict {
+    std::string firstFlag;
+    std::string secondFlag;
     std::string reason;
 };
 
@@ -99,8 +110,10 @@ struct PressurePackage {
     PackageVersion version;
     std::vector<PressureFlag> flags;
     std::vector<PressureSlot> slots;
+    std::vector<PressureSlotRequirement> requiredSlots;
     std::vector<PressureDependency> dependencies;
     std::vector<PressureBlocker> blockers;
+    std::vector<PressureFlagConflict> flagConflicts;
 };
 
 struct PressureExample {
@@ -122,6 +135,8 @@ std::string_view ToDisplayName(DiagnosticCategory category);
 std::string_view ToDisplayName(DiagnosticSeverity severity);
 std::string_view ToDisplayName(WorldUpdateItemKind itemKind);
 std::string FormatDiagnosticMessage(const PressureDiagnostic& diagnostic);
+std::vector<PressureDiagnostic> EvaluatePressureDiagnostics(const std::vector<PressurePackage>& packages);
+std::vector<std::string> SamplePressureDiagnosticOutput();
 
 FlagExample LyricsLowFrictionPolicyFlagExample();
 PressurePackage LiveSoloPerformanceRequirementExample();
