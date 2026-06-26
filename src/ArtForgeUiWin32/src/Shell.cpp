@@ -1,5 +1,7 @@
 #include "ArtForge/UiWin32/Shell.hpp"
 
+#include "ArtForge/UiWin32/PaneLayout.hpp"
+
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
@@ -20,7 +22,7 @@ constexpr int FileExitCommand = 1001;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
 constexpr int NavigationTreeId = 2003;
-constexpr int NavigationWidth = 280;
+constexpr int DetailPaneId = 2004;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
@@ -29,6 +31,7 @@ struct ScopeShellState {
     std::wstring loadDetailText;
     HWND navigationTree{};
     HWND summaryControl{};
+    HWND detailPane{};
     HWND statusBar{};
 };
 
@@ -357,6 +360,18 @@ std::wstring SummaryText(const ScopeShellState& state)
     return summary;
 }
 
+std::wstring DetailPaneText(const ScopeShellState& state)
+{
+    std::wstring text;
+    text += L"Properties and actions\r\n";
+    text += L"\r\nScope: ";
+    text += ArtForge::Core::ToDisplayName(state.descriptor.scope);
+    text += L"\r\nPath status: ";
+    text += state.loadStatusText;
+    text += L"\r\n\r\nPlaceholder pane for selected-item details, actions, rule hits, and diagnostics.";
+    return text;
+}
+
 HMENU CreateShellMenu()
 {
     const auto menu = CreateMenu();
@@ -384,25 +399,12 @@ void LayoutChildren(HWND window)
         statusHeight = statusRect.bottom - statusRect.top;
     }
 
-    if (state->navigationTree != nullptr) {
-        MoveWindow(
-            state->navigationTree,
-            12,
-            12,
-            NavigationWidth,
-            client.bottom - client.top - statusHeight - 24,
-            TRUE);
-    }
-
-    if (state->summaryControl != nullptr) {
-        MoveWindow(
-            state->summaryControl,
-            12 + NavigationWidth + 12,
-            12,
-            client.right - client.left - NavigationWidth - 36,
-            client.bottom - client.top - statusHeight - 24,
-            TRUE);
-    }
+    const auto rectangles = ArtForge::UiWin32::CalculateThreePaneLayout(client, statusHeight);
+    ArtForge::UiWin32::ApplyThreePaneLayout(
+        state->navigationTree,
+        state->summaryControl,
+        state->detailPane,
+        rectangles);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -430,7 +432,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
 
         const auto summary = SummaryText(*state);
         state->summaryControl = CreateWindowExW(
-            0,
+            WS_EX_CLIENTEDGE,
             L"STATIC",
             summary.c_str(),
             WS_CHILD | WS_VISIBLE | SS_LEFT,
@@ -440,6 +442,21 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             0,
             window,
             reinterpret_cast<HMENU>(static_cast<INT_PTR>(SummaryControlId)),
+            create->hInstance,
+            nullptr);
+
+        const auto detail = DetailPaneText(*state);
+        state->detailPane = CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            L"STATIC",
+            detail.c_str(),
+            WS_CHILD | WS_VISIBLE | SS_LEFT,
+            0,
+            0,
+            0,
+            0,
+            window,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(DetailPaneId)),
             create->hInstance,
             nullptr);
 

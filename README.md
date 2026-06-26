@@ -180,6 +180,9 @@ name, expected scope, optional path argument, and `ArtForge bootstrap OK`.
 The Win32 shell also includes a simple left navigation tree that shows the
 current scope, opened path, load status, and parent or child references when
 available from the loaded scope file or solution graph.
+The shared UI module also contains a small reusable pane layout helper for a
+left navigation pane, center workspace pane, right detail/action pane, and
+bottom status area. This is not a docking system.
 
 The shell model also preserves future navigation concepts without implementing
 them as GUI views yet. Solution shells reserve artists, projects, missing files,
