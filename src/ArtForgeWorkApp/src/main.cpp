@@ -59,6 +59,11 @@ bool IsSaveWorkDocumentCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--save-work-document";
 }
 
+bool IsEditSelectedTextCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 8 && std::wstring_view{arguments[1]} == L"--edit-selected-text";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -245,6 +250,62 @@ std::string SaveWorkDocument(int argumentCount, wchar_t** arguments)
     return output.str();
 }
 
+std::string EditSelectedText(wchar_t** arguments)
+{
+    const auto path = std::filesystem::path{arguments[2]};
+    const auto domain = WideToUtf8(arguments[3]);
+    const auto itemType = WideToUtf8(arguments[4]);
+    const auto itemId = WideToUtf8(arguments[5]);
+    const auto itemIndex = std::stoi(std::wstring{arguments[6]});
+    const auto replacement = WideToUtf8(arguments[7]);
+
+    const auto work = ArtForge::Files::LoadWorkScopeFile(path);
+    auto record = [&](ArtForge::History::HistoryOperation operation, int changeCount, std::string summary) {
+        const auto status = ArtForge::History::RecordChangeSetHistoryEvent(
+            path,
+            operation,
+            {
+                work.file.id,
+                path.generic_string(),
+                domain,
+                itemType,
+                itemId,
+                itemIndex,
+                "edit.selected-text",
+                changeCount,
+                std::move(summary),
+            });
+        (void)status;
+    };
+
+    record(ArtForge::History::HistoryOperation::EditCommandRequested, 0, "Selected text edit requested");
+    const auto result = ArtForge::Services::ApplySelectedTextEditCommand({
+        path,
+        domain,
+        itemType,
+        itemId,
+        itemIndex,
+        replacement,
+        "codex",
+    });
+    record(result.edit.status.ok ? ArtForge::History::HistoryOperation::ChangeSetValidated : ArtForge::History::HistoryOperation::SaveFailed, static_cast<int>(result.edit.changeSet.changes.size()), result.edit.status.summary);
+    if (result.save.status.ok) {
+        record(ArtForge::History::HistoryOperation::ChangeSetApplied, static_cast<int>(result.edit.changeSet.changes.size()), "Selected text edit applied");
+        record(ArtForge::History::HistoryOperation::SaveSucceeded, static_cast<int>(result.edit.changeSet.changes.size()), result.save.status.summary);
+    }
+
+    std::ostringstream output;
+    output << "Edit status: " << (result.save.status.ok ? "OK" : "failed") << "\n";
+    output << "Summary: " << result.save.status.summary << "\n";
+    output << "Change set: " << result.edit.changeSet.changeSetId << "\n";
+    output << "State: " << ArtForge::Services::DescribeChangeSetState(result.edit.changeSet.state) << "\n";
+    if (!result.edit.changeSet.changes.empty()) {
+        output << "Previous: " << result.edit.changeSet.changes.front().beforeValue << "\n";
+        output << "Replacement: " << result.edit.changeSet.changes.front().afterValue << "\n";
+    }
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -287,6 +348,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("Save status: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsEditSelectedTextCommand(argumentCount, arguments)) {
+        const auto result = EditSelectedText(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Edit status: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

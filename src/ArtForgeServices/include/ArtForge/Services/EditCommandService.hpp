@@ -76,6 +76,21 @@ struct SaveWorkDocumentResult {
     DirtyState dirtyState;
 };
 
+struct SelectedTextEditCommandRequest {
+    std::filesystem::path workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{-1};
+    std::string replacementText;
+    std::string actor;
+};
+
+struct SelectedTextEditCommandResult {
+    EditCommandResult edit;
+    ServiceCommandResult save;
+};
+
 EditCommand MakeReplaceTextCommand(
     std::string commandId,
     EditTarget target,
@@ -92,5 +107,6 @@ std::string DescribeChangeSetState(ChangeSetState state);
 std::string DescribeEditCommandResult(const EditCommandResult& result);
 std::string DescribeEditCommandSmokeExamples();
 SaveWorkDocumentResult SaveWorkDocumentCommand(const SaveWorkDocumentRequest& request);
+SelectedTextEditCommandResult ApplySelectedTextEditCommand(const SelectedTextEditCommandRequest& request);
 
 }

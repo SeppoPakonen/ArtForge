@@ -1,5 +1,7 @@
 #include "ArtForge/Services/EditCommandService.hpp"
 
+#include "ArtForge/Files/DomainWorkViewModels.hpp"
+
 #include <sstream>
 #include <utility>
 
@@ -20,6 +22,37 @@ std::string DescribeTarget(const EditTarget& target)
         output << "." << target.field;
     }
     return output.str();
+}
+
+std::string FileItemTypeForSelection(std::string_view domain, std::string_view itemType, std::string_view itemId)
+{
+    if (domain == "lyrics" && (itemType == "lyricLine" || itemType == "lyric_line")) {
+        return "lyric_line";
+    }
+    if (domain == "visualArt" && (itemType == "visualLayer" || itemType == "visual_layer")) {
+        if (itemId.find("paint.") == 0) {
+            return "paint_layer";
+        }
+        return "viewer_layer";
+    }
+    if (domain == "scriptStoryboard" && (itemType == "scriptBlock" || itemType == "script_block")) {
+        return "script_block";
+    }
+    return {};
+}
+
+std::string EditableFieldForSelection(std::string_view domain, std::string_view itemType)
+{
+    if (domain == "lyrics" && (itemType == "lyricLine" || itemType == "lyric_line")) {
+        return "text";
+    }
+    if (domain == "visualArt" && (itemType == "visualLayer" || itemType == "visual_layer")) {
+        return "intent";
+    }
+    if (domain == "scriptStoryboard" && (itemType == "scriptBlock" || itemType == "script_block")) {
+        return "text";
+    }
+    return {};
 }
 
 EditTarget MakeTarget(
@@ -201,6 +234,72 @@ SaveWorkDocumentResult SaveWorkDocumentCommand(const SaveWorkDocumentRequest& re
     result.command.debugSummary = "Save failed: dirty transaction support is not active.";
     result.dirtyState.canSave = false;
     result.dirtyState.lastSaveError = result.command.status.summary;
+    return result;
+}
+
+SelectedTextEditCommandResult ApplySelectedTextEditCommand(const SelectedTextEditCommandRequest& request)
+{
+    SelectedTextEditCommandResult result;
+
+    const auto fileItemType = FileItemTypeForSelection(request.domain, request.itemType, request.itemId);
+    const auto editableField = EditableFieldForSelection(request.domain, request.itemType);
+    if (fileItemType.empty() || editableField.empty()) {
+        result.edit.status = MakeErrorStatus("unsupported_selected_text_edit", "Selected item does not expose a supported text edit field.");
+        result.save.status = result.edit.status;
+        result.save.commandName = "apply-selected-text-edit";
+        return result;
+    }
+
+    EditTarget target;
+    target.scopePath = request.workPath.generic_string();
+    target.domain = request.domain;
+    target.itemType = request.itemType;
+    target.itemId = request.itemId;
+    target.itemIndex = request.itemIndex;
+    target.field = editableField;
+
+    auto command = MakeReplaceTextCommand(
+        "edit.selected-text",
+        target,
+        request.replacementText,
+        request.actor.empty() ? "user" : request.actor,
+        "workapp");
+    result.edit = PreviewReplaceTextCommand(command, "");
+    if (!result.edit.status.ok) {
+        result.save.status = result.edit.status;
+        result.save.commandName = "apply-selected-text-edit";
+        return result;
+    }
+
+    const auto update = ArtForge::Files::UpdateWorkDomainTextField({
+        request.workPath,
+        request.domain,
+        fileItemType,
+        request.itemId,
+        editableField,
+        request.replacementText,
+    });
+
+    result.save.commandName = "apply-selected-text-edit";
+    result.save.outputPath = request.workPath.generic_string();
+    if (!update.status.ok) {
+        const auto message = update.status.issues.empty() ? std::string{"Selected text edit failed."} : update.status.issues.front().message;
+        result.save.status = MakeErrorStatus("selected_text_edit_failed", message);
+        result.save.debugSummary = "Selected text edit failed before save completion.";
+        result.edit.changeSet.state = ChangeSetState::Rejected;
+        result.edit.status = result.save.status;
+        return result;
+    }
+
+    result.edit.changeSet.state = ChangeSetState::Applied;
+    if (!result.edit.changeSet.changes.empty()) {
+        result.edit.changeSet.changes.front().beforeValue = update.previousText;
+    }
+    result.edit.dirtyState.isDirty = false;
+    result.edit.dirtyState.canSave = false;
+    result.edit.dirtyState.pendingChangeCount = 0;
+    result.save.status = MakeOkStatus("Selected text edit saved.");
+    result.save.debugSummary = "Selected text edit applied through edit command service and safe file roundtrip.";
     return result;
 }
 
