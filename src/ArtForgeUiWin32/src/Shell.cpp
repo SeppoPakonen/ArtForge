@@ -45,6 +45,7 @@ constexpr int NavigationTreeId = 2003;
 constexpr int DetailTabId = 2004;
 constexpr int DetailListId = 2005;
 constexpr int CommandBarId = 2006;
+constexpr int DocumentTabId = 2007;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
@@ -55,6 +56,7 @@ struct ScopeShellState {
     HWND navigationTree{};
     HWND summaryControl{};
     ListViewReport domainList;
+    TabControl documentTabs;
     TabControl detailTabs;
     PropertyPanel propertyPanel;
     ArtForge::Presentation::SelectionModel workSelection;
@@ -429,7 +431,9 @@ void UpdateFileStatus(ScopeShellState& state)
 std::wstring SummaryText(const ScopeShellState& state)
 {
     std::wstring summary;
-    summary += L"Application: ";
+    summary += state.descriptor.applicationName;
+    summary += L"\r\n";
+    summary += L"\r\nApplication: ";
     summary += state.descriptor.applicationName;
     summary += L"\r\nScope type: ";
     summary += ArtForge::Core::ToDisplayName(state.descriptor.scope);
@@ -448,6 +452,33 @@ std::wstring SummaryText(const ScopeShellState& state)
     }
     summary += L"\r\nArtForge bootstrap OK";
     return summary;
+}
+
+std::wstring StartPageText(const ScopeShellState& state)
+{
+    std::wstring text;
+    text += state.descriptor.applicationName;
+    text += L"\r\n";
+    text += state.descriptor.expectedScope;
+    text += L"\r\n";
+    text += L"\r\nCurrent scope: ";
+    text += ArtForge::Core::ToDisplayName(state.descriptor.scope);
+    text += L"\r\nPath: ";
+    text += state.openedPath.empty() ? L"(none)" : state.openedPath;
+    text += L"\r\nLoad status: ";
+    text += state.loadStatusText;
+    text += L"\r\nLoad detail: ";
+    text += state.loadDetailText;
+    text += L"\r\n";
+    if (state.openedPath.empty()) {
+        text += L"\r\nOpen a matching ArtForge scope file by launching this app with a file path.";
+        text += L"\r\nUse the command bar for refresh, prompt, queue, and suggestion-review actions as they become available.";
+    } else {
+        text += L"\r\nReview the navigation explorer, current scope tab, inspector, and output panels for loaded-file state.";
+    }
+    text += L"\r\n";
+    text += L"\r\nArtForge bootstrap OK";
+    return text;
 }
 
 void RenderTableModel(ListViewReport& list, const ArtForge::Presentation::TableModel& table)
@@ -710,7 +741,7 @@ void HandleRefreshCommand(ScopeShellState& state)
         state.domainList.Clear();
         PopulateWorkDomainList(state);
     } else if (state.summaryControl != nullptr) {
-        const auto summary = SummaryText(state);
+        const auto summary = StartPageText(state);
         SetWindowTextW(state.summaryControl, summary.c_str());
     }
     PopulatePropertyPanel(state);
@@ -829,9 +860,22 @@ void LayoutChildren(HWND window)
         ArtForge::UiWin32::ToPaneLayoutMetrics(state->metrics));
     ArtForge::UiWin32::ApplyThreePaneLayout(
         state->navigationTree,
-        state->summaryControl,
+        state->documentTabs.Window(),
         state->detailTabs.Window(),
         rectangles);
+
+    const auto documentArea = state->documentTabs.DisplayArea();
+    if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
+        state->domainList.Move(documentArea);
+    } else if (state->summaryControl != nullptr) {
+        MoveWindow(
+            state->summaryControl,
+            documentArea.left,
+            documentArea.top,
+            documentArea.right - documentArea.left,
+            documentArea.bottom - documentArea.top,
+            TRUE);
+    }
 
     const auto detailArea = state->detailTabs.DisplayArea();
     state->propertyPanel.Move(detailArea);
@@ -864,11 +908,20 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         ApplyDefaultGuiFont(state->navigationTree);
         PopulateNavigationTree(state->navigationTree, *state);
 
+        state->documentTabs.Create(window, DocumentTabId, create->hInstance);
+        state->documentTabs.AddTab(0, L"Start");
+        state->documentTabs.AddTab(1, L"Current Scope");
+        if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
+            state->documentTabs.AddTab(2, L"Work Domain");
+            state->documentTabs.AddTab(3, L"Prompt Preview");
+            state->documentTabs.AddTab(4, L"Suggestion Review");
+        }
+
         if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
             state->summaryControl = state->domainList.Create(window, SummaryControlId, create->hInstance);
             PopulateWorkDomainList(*state);
         } else {
-            const auto summary = SummaryText(*state);
+            const auto summary = StartPageText(*state);
             state->summaryControl = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 L"STATIC",
@@ -886,8 +939,10 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         }
 
         state->detailTabs.Create(window, DetailTabId, create->hInstance);
-        state->detailTabs.AddTab(0, L"Details");
+        state->detailTabs.AddTab(0, L"Inspector");
         state->detailTabs.AddTab(1, L"Prompt preview");
+        state->detailTabs.AddTab(2, L"Suggestion review");
+        state->detailTabs.AddTab(3, L"Provider status");
 
         state->propertyPanel.Create(window, DetailListId, create->hInstance);
         PopulatePropertyPanel(*state);
