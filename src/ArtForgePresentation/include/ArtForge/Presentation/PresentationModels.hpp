@@ -82,6 +82,19 @@ struct ManualAiQueueModel {
     std::vector<std::string> diagnostics;
 };
 
+struct ProviderStatusEntryModel {
+    std::string providerKind;
+    std::string configurationStatus;
+    std::string requestStatus;
+    std::string lastDiagnostic;
+    std::string lastResultPath;
+    std::string pendingSuggestionId;
+};
+
+struct ProviderStatusModel {
+    std::vector<ProviderStatusEntryModel> providers;
+};
+
 struct PendingSuggestionReviewModel {
     bool available{};
     std::string suggestionId;

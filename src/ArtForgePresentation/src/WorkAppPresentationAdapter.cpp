@@ -431,6 +431,66 @@ ManualAiQueueModel BuildManualAiQueueModel(const std::filesystem::path& workPath
     return model;
 }
 
+bool EnvironmentVariableIsSet(const char* name)
+{
+    char* value = nullptr;
+    std::size_t length = 0;
+    const auto ok = _dupenv_s(&value, &length, name) == 0 && value != nullptr && length > 1;
+    if (value != nullptr) {
+        free(value);
+    }
+    return ok;
+}
+
+ProviderStatusModel BuildProviderStatusModel(
+    const ManualAiQueueModel& queue,
+    const PendingSuggestionReviewModel& review)
+{
+    ProviderStatusModel model;
+    model.providers.push_back({
+        "manualQueue",
+        "available",
+        queue.available ? "ready" : "waitingForSelection",
+        queue.diagnostics.empty() ? queue.status : queue.diagnostics.front(),
+        queue.expectedResultFile,
+        review.suggestionId,
+    });
+    const bool openAiConfigured = EnvironmentVariableIsSet("ARTFORGE_OPENAI_API_KEY");
+    model.providers.push_back({
+        "openai",
+        openAiConfigured ? "configured" : "not configured",
+        openAiConfigured ? "idle" : "notConfigured",
+        openAiConfigured ? "OpenAI environment configuration is present." : "OpenAI environment configuration is not present.",
+        "",
+        review.suggestionId,
+    });
+    model.providers.push_back({
+        "anthropic",
+        "not configured",
+        "notImplemented",
+        "Anthropic provider is a stub.",
+        "",
+        "",
+    });
+    model.providers.push_back({
+        "alibabaCloud",
+        "not configured",
+        "notImplemented",
+        "Alibaba Cloud provider is a stub.",
+        "",
+        "",
+    });
+    model.providers.push_back({
+        "unknown",
+        "unsupported",
+        "unsupportedProvider",
+        "Unknown provider is unsupported.",
+        "",
+        "",
+    });
+    return model;
+}
+
 void AddPromptPreviewProperties(PropertyListModel& properties, const PromptPreviewModel& preview)
 {
     AddProperty(properties, "Prompt preview", preview.available ? "available" : "not available");
@@ -511,6 +571,25 @@ void AddPendingSuggestionReviewProperties(PropertyListModel& properties, const P
     }
 }
 
+void AddProviderStatusProperties(PropertyListModel& properties, const ProviderStatusModel& providerStatus)
+{
+    AddProperty(properties, "Provider status", providerStatus.providers.empty() ? "not available" : "available");
+    for (const auto& provider : providerStatus.providers) {
+        const auto prefix = "Provider " + provider.providerKind + " ";
+        AddProperty(properties, prefix + "configuration", provider.configurationStatus);
+        AddProperty(properties, prefix + "request status", provider.requestStatus);
+        if (!provider.lastDiagnostic.empty()) {
+            AddProperty(properties, prefix + "last diagnostic", provider.lastDiagnostic);
+        }
+        if (!provider.lastResultPath.empty()) {
+            AddProperty(properties, prefix + "last result path", provider.lastResultPath);
+        }
+        if (!provider.pendingSuggestionId.empty()) {
+            AddProperty(properties, prefix + "pending suggestion", provider.pendingSuggestionId);
+        }
+    }
+}
+
 DirtyStateModel BuildCleanDirtyState()
 {
     DirtyStateModel state;
@@ -588,11 +667,13 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(
     model.promptPreview = BuildPromptPreview(workPath, model.selection);
     model.manualAiQueue = BuildManualAiQueueModel(workPath, model.selection);
     model.pendingSuggestionReview = BuildPendingSuggestionReviewModel(workPath);
+    model.providerStatus = BuildProviderStatusModel(model.manualAiQueue, model.pendingSuggestionReview);
     model.dirtyState = BuildCleanDirtyState();
     AddSelectionProperties(model.properties, workPath, model.selection);
     AddPromptPreviewProperties(model.properties, model.promptPreview);
     AddManualAiQueueProperties(model.properties, model.manualAiQueue);
     AddPendingSuggestionReviewProperties(model.properties, model.pendingSuggestionReview);
+    AddProviderStatusProperties(model.properties, model.providerStatus);
     AddDirtyStateProperties(model.properties, model.dirtyState);
 
     if (!result.status.ok) {
