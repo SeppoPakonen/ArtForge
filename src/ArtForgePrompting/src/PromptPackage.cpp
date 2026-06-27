@@ -1170,4 +1170,63 @@ std::string DescribeManualAiQueuePollResult(const ManualAiQueuePollResult& resul
     return output.str();
 }
 
+AiExecutionResult DispatchAiExecutionRequestNoNetwork(const AiProviderDispatchRequest& request)
+{
+    if (request.execution.providerKind == AiProviderKind::ManualQueue) {
+        return WriteManualAiQueueRequest({request.execution, request.promptText}).providerResult;
+    }
+
+    AiExecutionResult result;
+    result.requestId = request.execution.requestId;
+    result.providerKind = request.execution.providerKind;
+    result.locations = request.execution.locations;
+
+    if (request.execution.providerKind == AiProviderKind::Unknown
+        || request.execution.providerKind == AiProviderKind::Unsupported) {
+        result.status = AiExecutionStatus::UnsupportedProvider;
+        result.errors.push_back({"unsupported-provider", "AI provider is unknown or unsupported."});
+        return result;
+    }
+
+    const auto found = std::find_if(
+        request.providerConfigurations.begin(),
+        request.providerConfigurations.end(),
+        [&](const AiProviderConfiguration& configuration) {
+            return configuration.providerKind == request.execution.providerKind;
+        });
+    if (found == request.providerConfigurations.end() || !found->enabled) {
+        result.status = AiExecutionStatus::NotConfigured;
+        result.errors.push_back({"not-configured", "API provider is not configured."});
+        return result;
+    }
+
+    result.status = AiExecutionStatus::NotImplemented;
+    result.errors.push_back({"not-implemented", "API provider network execution is not implemented."});
+    return result;
+}
+
+std::string DescribeAiExecutionResult(const AiExecutionResult& result)
+{
+    std::ostringstream output;
+    output << "AI provider dispatch: " << ToDisplayName(result.status) << "\n";
+    output << "Provider: " << ToDisplayName(result.providerKind) << "\n";
+    output << "Request id: " << result.requestId << "\n";
+    if (!result.locations.requestPath.empty()) {
+        output << "Request file: " << result.locations.requestPath.generic_string() << "\n";
+    }
+    if (!result.locations.promptTextPath.empty()) {
+        output << "Prompt text file: " << result.locations.promptTextPath.generic_string() << "\n";
+    }
+    if (!result.locations.expectedResultPath.empty()) {
+        output << "Expected result file: " << result.locations.expectedResultPath.generic_string() << "\n";
+    }
+    for (const auto& error : result.errors) {
+        output << "Error: " << error.code << ": " << error.message << "\n";
+    }
+    for (const auto& diagnostic : result.diagnostics) {
+        output << "Diagnostic: " << diagnostic << "\n";
+    }
+    return output.str();
+}
+
 }

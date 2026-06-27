@@ -166,6 +166,12 @@ struct ManualAiQueuePollResult {
     std::vector<std::string> diagnostics;
 };
 
+struct AiProviderDispatchRequest {
+    AiExecutionRequest execution;
+    std::string promptText;
+    std::vector<AiProviderConfiguration> providerConfigurations;
+};
+
 struct PromptLayerDescriptor {
     PromptLayer layer;
     std::string_view displayName;
@@ -245,6 +251,8 @@ ManualAiQueueWriteResult WriteManualAiQueueRequest(const ManualAiQueueWriteReque
 std::string DescribeManualAiQueueWriteResult(const ManualAiQueueWriteResult& result);
 ManualAiQueuePollResult PollManualAiQueueResult(const ManualAiQueuePollRequest& request);
 std::string DescribeManualAiQueuePollResult(const ManualAiQueuePollResult& result);
+AiExecutionResult DispatchAiExecutionRequestNoNetwork(const AiProviderDispatchRequest& request);
+std::string DescribeAiExecutionResult(const AiExecutionResult& result);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},

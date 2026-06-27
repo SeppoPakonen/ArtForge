@@ -96,6 +96,11 @@ bool IsDescribeAiProviderConfigCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-ai-provider-config";
 }
 
+bool IsDispatchAiProviderCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--dispatch-ai-provider";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -474,6 +479,50 @@ std::string PollManualAiQueue(int argumentCount, wchar_t** arguments)
     return ArtForge::Prompting::DescribeManualAiQueuePollResult(result);
 }
 
+ArtForge::Prompting::AiProviderKind ParseProviderKind(std::string_view value)
+{
+    if (value == "manualQueue") {
+        return ArtForge::Prompting::AiProviderKind::ManualQueue;
+    }
+    if (value == "openai") {
+        return ArtForge::Prompting::AiProviderKind::OpenAI;
+    }
+    if (value == "anthropic") {
+        return ArtForge::Prompting::AiProviderKind::Anthropic;
+    }
+    if (value == "alibabaCloud") {
+        return ArtForge::Prompting::AiProviderKind::AlibabaCloud;
+    }
+    return ArtForge::Prompting::AiProviderKind::Unknown;
+}
+
+std::string DispatchAiProvider(int argumentCount, wchar_t** arguments)
+{
+    const auto provider = ParseProviderKind(WideToUtf8(arguments[2]));
+    const auto queueRoot = argumentCount >= 4 ? std::filesystem::path{arguments[3]} : std::filesystem::temp_directory_path() / "artforge-ai-dispatch";
+
+    ArtForge::Prompting::AiExecutionRequest execution;
+    execution.providerKind = provider;
+    execution.queueRoot = queueRoot;
+    execution.promptPackagePath = "examples/prompt-selected-items/lyrics-line-repair.afprompt.json";
+    execution.promptPackageSummary = "Selected item prompt package";
+    execution.resultSchemaPath = "docs/prompting/ai-result-contract.md";
+    execution.requestedOperation = "line-repair";
+    execution.target.workPath = "examples/work-domains/lyrics.afwork.json";
+    execution.target.domain = "lyrics";
+    execution.target.itemType = "lyricLine";
+    execution.target.itemId = "line.v1.001";
+    execution.target.itemIndex = 0;
+    execution.target.field = "text";
+
+    const auto result = ArtForge::Prompting::DispatchAiExecutionRequestNoNetwork({
+        execution,
+        "# Manual AI dispatch smoke\n\nReturn only JSON.\n",
+        ArtForge::Prompting::DefaultAiProviderConfigurationStubs(),
+    });
+    return ArtForge::Prompting::DescribeAiExecutionResult(result);
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -559,6 +608,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return 0;
+    }
+    if (arguments != nullptr && IsDispatchAiProviderCommand(argumentCount, arguments)) {
+        const auto result = DispatchAiProvider(argumentCount, arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("AI provider dispatch: failed") == std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);
