@@ -117,6 +117,11 @@ bool IsSmokeOpenAiDispatchCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-openai-dispatch";
 }
 
+bool IsSmokeOpenAiStructuredValidationCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-openai-structured-validation";
+}
+
 bool IsDispatchOpenAiLiveCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--dispatch-openai-live";
@@ -487,6 +492,42 @@ std::string SmokeOpenAiDispatch()
     output << "Missing configuration\n" << ArtForge::Prompting::DescribeAiExecutionResult(missing) << "\n";
     output << "Fake transport success\n" << ArtForge::Prompting::DescribeAiExecutionResult(success) << "\n";
     output << "Fake transport failure\n" << ArtForge::Prompting::DescribeAiExecutionResult(failure);
+    return output.str();
+}
+
+std::string DescribeOpenAiFixtureDispatch(
+    const char* label,
+    const std::filesystem::path& fixturePath,
+    const ArtForge::Prompting::AiProviderDispatchRequest& request)
+{
+    const auto response = ArtForge::Prompting::FakeHttpJsonPostResponse(200, ReadTextFile(fixturePath));
+    const auto result = ArtForge::Prompting::DispatchAiExecutionRequestWithFakeHttpResponse(request, response);
+    std::ostringstream output;
+    output << "Fixture: " << label << "\n";
+    output << "Path: " << fixturePath.generic_string() << "\n";
+    output << ArtForge::Prompting::DescribeAiExecutionResult(result);
+    output << "Pending suggestions: " << result.pendingSuggestions.size() << "\n";
+    return output.str();
+}
+
+std::string SmokeOpenAiStructuredValidation()
+{
+    const ArtForge::Prompting::AiProviderDispatchRequest request{
+        BuildOpenAiSmokeExecution(),
+        "# ArtForge prompt package\n\nReturn JSON for the selected lyric line.",
+        {
+            {ArtForge::Prompting::AiProviderKind::OpenAI, "OpenAI", "responses", "gpt-placeholder", true},
+        },
+    };
+
+    std::ostringstream output;
+    output << "OpenAI structured validation smoke\n";
+    output << DescribeOpenAiFixtureDispatch("valid", "examples/ai-providers/openai-response-lyrics-line-repair.json", request) << "\n";
+    output << DescribeOpenAiFixtureDispatch("invalidJson", "examples/ai-providers/openai-response-invalid-json.json", request) << "\n";
+    output << DescribeOpenAiFixtureDispatch("wrongSchema", "examples/ai-providers/openai-response-wrong-schema.json", request) << "\n";
+    output << DescribeOpenAiFixtureDispatch("mismatchedTarget", "examples/ai-providers/openai-response-mismatched-target.json", request) << "\n";
+    output << DescribeOpenAiFixtureDispatch("empty", "examples/ai-providers/openai-response-empty.json", request) << "\n";
+    output << DescribeOpenAiFixtureDispatch("refusal", "examples/ai-providers/openai-response-refusal.json", request);
     return output.str();
 }
 
@@ -922,6 +963,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
             && result.find("AI provider dispatch: resultFound") != std::string::npos
             && result.find("Fake transport failure") != std::string::npos
             && result.find("AI provider dispatch: failed") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeOpenAiStructuredValidationCommand(argumentCount, arguments)) {
+        const auto result = SmokeOpenAiStructuredValidation();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Fixture: valid") != std::string::npos
+            && result.find("AI provider dispatch: resultFound") != std::string::npos
+            && result.find("Pending suggestions: 1") != std::string::npos
+            && result.find("Fixture: invalidJson") != std::string::npos
+            && result.find("stage=jsonParse") != std::string::npos
+            && result.find("Fixture: wrongSchema") != std::string::npos
+            && result.find("stage=artforgeContract") != std::string::npos
+            && result.find("Fixture: mismatchedTarget") != std::string::npos
+            && result.find("AI provider dispatch: targetMismatch") != std::string::npos
+            && result.find("Fixture: empty") != std::string::npos
+            && result.find("stage=candidateExtraction") != std::string::npos
+            && result.find("Fixture: refusal") != std::string::npos
+            && result.find("stage=providerResponseParse") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr && IsDispatchOpenAiLiveCommand(argumentCount, arguments)) {
         const auto result = DispatchOpenAiLive();

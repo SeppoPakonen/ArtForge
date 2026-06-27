@@ -1,0 +1,7 @@
+{
+  "id": "resp_artforge_fake_mismatched_target",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-placeholder",
+  "output_text": "{\"format\":\"artforge.ai.selectedItemResult\",\"schemaVersion\":1,\"resultId\":\"ai.result.openai.fake.mismatch\",\"promptPackageId\":\"prompt.selected.lyrics.001\",\"target\":{\"workPath\":\"examples/work-domains/lyrics.afwork.json\",\"domain\":\"lyrics\",\"itemType\":\"lyricLine\",\"itemId\":\"line.v1.999\",\"itemIndex\":0,\"field\":\"text\"},\"suggestions\":[{\"id\":\"suggestion.openai.fake.mismatch\",\"summary\":\"Wrong target.\"}],\"critiqueItems\":[\"Wrong target.\"],\"replacementCandidates\":[{\"id\":\"candidate.openai.fake.mismatch\",\"operation\":\"replaceText\",\"field\":\"text\",\"proposedText\":\"Wrong target text\",\"rationale\":\"Deliberately mismatched fixture.\",\"diagnostics\":[]}],\"ruleHits\":[],\"ruleViolations\":[],\"unresolvedQuestions\":[],\"confidence\":0.1,\"rationale\":\"This fixture must be rejected.\"}"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "resp_artforge_fake_invalid_json",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-placeholder",
+  "output_text": "{\"format\":\"artforge.ai.selectedItemResult\""
+}

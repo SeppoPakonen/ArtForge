@@ -1543,14 +1543,41 @@ OpenAiResponseMappingResult ExtractOpenAiResponseResultJson(
     result.providerResult.providerKind = AiProviderKind::OpenAI;
     result.providerResult.locations = execution.locations;
 
-    auto candidate = ExtractStringField(responseJson, "output_text");
-    if (candidate.empty()) {
-        candidate = ExtractStringField(responseJson, "text");
+    const auto trimmedResponse = Trim(std::string{responseJson});
+    if (trimmedResponse.empty() || trimmedResponse.front() != '{' || trimmedResponse.back() != '}') {
+        result.providerResult.status = AiExecutionStatus::ResultInvalid;
+        result.diagnostics.push_back("stage=providerResponseParse: OpenAI response must be a JSON object.");
+        result.providerResult.diagnostics = result.diagnostics;
+        return result;
     }
-    candidate = ExtractFirstJsonObject(candidate.empty() ? responseJson : std::string_view{candidate});
+    if (ContainsField(responseJson, "error")) {
+        result.providerResult.status = AiExecutionStatus::Failed;
+        const auto message = ExtractStringField(responseJson, "message");
+        result.diagnostics.push_back("stage=providerResponseParse: OpenAI response reported an error.");
+        if (!message.empty()) {
+            result.diagnostics.push_back("stage=providerResponseParse: " + message);
+        }
+        result.providerResult.diagnostics = result.diagnostics;
+        return result;
+    }
+
+    auto rawCandidate = ExtractStringField(responseJson, "output_text");
+    if (rawCandidate.empty()) {
+        rawCandidate = ExtractStringField(responseJson, "text");
+    }
+    if (rawCandidate.empty() && ContainsField(responseJson, "format") && ContainsField(responseJson, "artforge.ai.selectedItemResult")) {
+        rawCandidate = std::string{responseJson};
+    }
+    auto candidate = ExtractFirstJsonObject(rawCandidate);
+    if (candidate.empty() && rawCandidate.find('{') != std::string::npos) {
+        result.providerResult.status = AiExecutionStatus::ResultInvalid;
+        result.diagnostics.push_back("stage=jsonParse: OpenAI candidate text is not a complete JSON object.");
+        result.providerResult.diagnostics = result.diagnostics;
+        return result;
+    }
     if (candidate.empty()) {
         result.providerResult.status = AiExecutionStatus::ResultInvalid;
-        result.diagnostics.push_back("OpenAI response did not contain an ArtForge JSON result candidate.");
+        result.diagnostics.push_back("stage=candidateExtraction: OpenAI response did not contain an ArtForge JSON result candidate.");
         result.providerResult.diagnostics = result.diagnostics;
         return result;
     }
@@ -1559,15 +1586,42 @@ OpenAiResponseMappingResult ExtractOpenAiResponseResultJson(
     auto validation = ValidateAiResultJsonText(candidate);
     if (!validation.ok) {
         result.providerResult.status = AiExecutionStatus::ResultInvalid;
-        result.diagnostics = validation.diagnostics;
-        result.providerResult.diagnostics = validation.diagnostics;
+        result.diagnostics.push_back("stage=artforgeContract: OpenAI candidate failed the ArtForge AI result contract.");
+        for (const auto& diagnostic : validation.diagnostics) {
+            result.diagnostics.push_back("stage=artforgeContract: " + diagnostic);
+        }
+        result.providerResult.diagnostics = result.diagnostics;
         return result;
+    }
+    for (const auto& suggestion : validation.pendingSuggestions) {
+        if (suggestion.target.workPath.generic_string() != execution.target.workPath.generic_string()
+            || suggestion.target.domain != execution.target.domain
+            || suggestion.target.itemType != execution.target.itemType
+            || suggestion.target.itemId != execution.target.itemId
+            || suggestion.target.field != execution.target.field) {
+            result.providerResult.status = AiExecutionStatus::TargetMismatch;
+            result.diagnostics.push_back("stage=targetCompatibility: OpenAI candidate target does not match the execution request.");
+            result.diagnostics.push_back("stage=targetCompatibility: expected "
+                + execution.target.workPath.generic_string() + " "
+                + execution.target.domain + "/" + execution.target.itemType + "#"
+                + execution.target.itemId + "." + execution.target.field);
+            result.diagnostics.push_back("stage=targetCompatibility: actual "
+                + suggestion.target.workPath.generic_string() + " "
+                + suggestion.target.domain + "/" + suggestion.target.itemType + "#"
+                + suggestion.target.itemId + "." + suggestion.target.field);
+            result.providerResult.diagnostics = result.diagnostics;
+            return result;
+        }
     }
 
     result.ok = true;
     result.providerResult.status = AiExecutionStatus::ResultFound;
     result.providerResult.pendingSuggestions = validation.pendingSuggestions;
-    result.diagnostics.push_back("OpenAI response candidate validated as ArtForge AI result JSON.");
+    result.diagnostics.push_back("stage=transport: OpenAI HTTP response was successful.");
+    result.diagnostics.push_back("stage=providerResponseParse: OpenAI response JSON object parsed.");
+    result.diagnostics.push_back("stage=candidateExtraction: OpenAI ArtForge result candidate extracted.");
+    result.diagnostics.push_back("stage=artforgeContract: OpenAI candidate validated as ArtForge AI result JSON.");
+    result.diagnostics.push_back("stage=targetCompatibility: OpenAI candidate target matched the execution request.");
     result.providerResult.diagnostics = result.diagnostics;
     return result;
 }
@@ -1665,7 +1719,6 @@ HttpJsonPostRequest BuildOpenAiHttpJsonPostRequest(
         OpenAiResponsesEndpointUrl(configuration),
         {
             {"Authorization", "Bearer " + std::string{apiKey}},
-            {"OpenAI-Beta", "responses=v1"},
         },
         requestJson,
         30000,
@@ -1688,7 +1741,7 @@ AiExecutionResult DispatchOpenAiProviderWithResponse(
             httpResponse.errorCode.empty() ? "http-request-failed" : httpResponse.errorCode,
             httpResponse.errorMessage.empty() ? "OpenAI HTTP request failed." : httpResponse.errorMessage,
         });
-        result.diagnostics.push_back("OpenAI non-streaming dispatch failed before result validation.");
+        result.diagnostics.push_back("stage=transport: OpenAI non-streaming dispatch failed before result validation.");
         return result;
     }
 

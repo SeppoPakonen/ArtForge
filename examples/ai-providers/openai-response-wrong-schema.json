@@ -1,0 +1,7 @@
+{
+  "id": "resp_artforge_fake_wrong_schema",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-placeholder",
+  "output_text": "{\"format\":\"artforge.ai.selectedItemResult\",\"schemaVersion\":1,\"note\":\"missing required ArtForge result sections\"}"
+}
