@@ -14,6 +14,7 @@ public:
     [[nodiscard]] HWND Window() const noexcept;
 
     void AddColumn(int index, std::wstring_view title, int width);
+    void SetColumnWidth(int index, int width);
     void AddRow(const std::vector<std::wstring_view>& cells);
     void ClearRows();
     void Clear();

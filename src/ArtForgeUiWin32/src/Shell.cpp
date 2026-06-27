@@ -594,20 +594,72 @@ void PopulatePropertyPanel(ScopeShellState& state)
     state.propertyPanel.AddGroup(L"Scope");
     state.propertyPanel.AddProperty(L"Application", state.descriptor.applicationName);
     state.propertyPanel.AddProperty(L"Scope", ArtForge::Core::ToDisplayName(state.descriptor.scope));
+    state.propertyPanel.AddProperty(L"Expected scope", state.descriptor.expectedScope);
+
+    state.propertyPanel.AddGroup(L"Selection");
+    state.propertyPanel.AddProperty(L"Selected item", state.workSelection.hasSelection ? Utf8ToWide(state.workSelection.displayLabel) : L"(none)");
+    state.propertyPanel.AddProperty(L"Selected domain", Utf8ToWide(state.workSelection.domain));
+    state.propertyPanel.AddProperty(L"Selected type", Utf8ToWide(state.workSelection.itemType));
+
+    state.propertyPanel.AddGroup(L"File");
     state.propertyPanel.AddProperty(L"Path", pathText);
     state.propertyPanel.AddProperty(L"Load status", state.loadStatusText);
-    state.propertyPanel.AddProperty(L"Load detail", state.loadDetailText);
 
     if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
         const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(
             std::filesystem::path{state.openedPath},
             state.workSelection);
         state.dirtyState = presentation.dirtyState;
-        state.propertyPanel.AddGroup(L"Work");
         for (const auto& property : presentation.properties.properties) {
+            if (property.name.find("Provider ") == 0 || property.name == "Provider status") {
+                continue;
+            }
+            if (property.name.find("diagnostic") != std::string::npos || property.name.find("Diagnostic") != std::string::npos) {
+                continue;
+            }
+            if (property.name.find("Selected") == 0 || property.name == "Selection") {
+                continue;
+            }
             state.propertyPanel.AddProperty(Utf8ToWide(property.name), Utf8ToWide(property.value));
         }
+
+        state.propertyPanel.AddGroup(L"Provider");
+        for (const auto& provider : presentation.providerStatus.providers) {
+            state.propertyPanel.AddProperty(
+                Utf8ToWide(provider.providerKind),
+                Utf8ToWide(provider.configurationStatus + " / " + provider.requestStatus));
+            if (!provider.lastDiagnostic.empty()) {
+                state.propertyPanel.AddProperty(Utf8ToWide(provider.providerKind + " diagnostic"), Utf8ToWide(provider.lastDiagnostic));
+            }
+        }
+
+        state.propertyPanel.AddGroup(L"Diagnostics");
+        if (presentation.status.diagnostics.empty()
+            && presentation.promptPreview.diagnostics.empty()
+            && presentation.manualAiQueue.diagnostics.empty()
+            && presentation.pendingSuggestionReview.diagnostics.empty()) {
+            state.propertyPanel.AddProperty(L"Diagnostics", L"No diagnostics.");
+        }
+        for (const auto& diagnostic : presentation.status.diagnostics) {
+            state.propertyPanel.AddProperty(L"Status diagnostic", Utf8ToWide(diagnostic));
+        }
+        for (const auto& diagnostic : presentation.promptPreview.diagnostics) {
+            state.propertyPanel.AddProperty(L"Prompt diagnostic", Utf8ToWide(diagnostic));
+        }
+        for (const auto& diagnostic : presentation.manualAiQueue.diagnostics) {
+            state.propertyPanel.AddProperty(L"Queue diagnostic", Utf8ToWide(diagnostic));
+        }
+        for (const auto& diagnostic : presentation.pendingSuggestionReview.diagnostics) {
+            state.propertyPanel.AddProperty(L"Suggestion diagnostic", Utf8ToWide(diagnostic));
+        }
+        return;
     }
+
+    state.propertyPanel.AddGroup(L"Provider");
+    state.propertyPanel.AddProperty(L"Provider status", L"Available in WorkApp scope.");
+
+    state.propertyPanel.AddGroup(L"Diagnostics");
+    state.propertyPanel.AddProperty(L"Load detail", state.loadDetailText);
 }
 
 void SetStatusText(ScopeShellState& state, std::wstring text)

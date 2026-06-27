@@ -2,6 +2,7 @@
 
 #include "ArtForge/UiWin32/CommonControls.hpp"
 
+#include <commctrl.h>
 #include <windows.h>
 
 #include <string_view>
@@ -10,6 +11,8 @@ namespace ArtForge::UiWin32 {
 
 class PropertyPanel {
 public:
+    ~PropertyPanel();
+
     HWND Create(HWND parent, int controlId, HINSTANCE instance);
 
     [[nodiscard]] HWND Window() const noexcept;
@@ -21,6 +24,7 @@ public:
 
 private:
     ListViewReport list_;
+    HIMAGELIST rowHeightImage_{};
 };
 
 }

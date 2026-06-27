@@ -49,6 +49,13 @@ void ListViewReport::AddColumn(int index, std::wstring_view title, int width)
     ListView_InsertColumn(window_, index, &column);
 }
 
+void ListViewReport::SetColumnWidth(int index, int width)
+{
+    if (window_ != nullptr) {
+        ListView_SetColumnWidth(window_, index, width);
+    }
+}
+
 void ListViewReport::AddRow(const std::vector<std::wstring_view>& cells)
 {
     if (window_ == nullptr || cells.empty()) {
