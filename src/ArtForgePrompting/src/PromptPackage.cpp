@@ -2,7 +2,9 @@
 
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 
+#include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <optional>
 #include <sstream>
 
@@ -383,6 +385,118 @@ std::string ExtractStringField(std::string_view json, std::string_view key)
         value += character;
     }
     return {};
+}
+
+int NextManualQueueSequence(const std::filesystem::path& queueRoot)
+{
+    int maxSequence = 0;
+    if (!std::filesystem::exists(queueRoot)) {
+        return 1;
+    }
+    for (const auto& entry : std::filesystem::directory_iterator{queueRoot}) {
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        const auto name = entry.path().filename().string();
+        if (name.size() < 6) {
+            continue;
+        }
+        bool allDigits = true;
+        for (int index = 0; index < 6; ++index) {
+            allDigits = allDigits && name[static_cast<std::size_t>(index)] >= '0' && name[static_cast<std::size_t>(index)] <= '9';
+        }
+        if (allDigits) {
+            maxSequence = std::max(maxSequence, std::stoi(name.substr(0, 6)));
+        }
+    }
+    return maxSequence + 1;
+}
+
+std::string SafeSlug(std::string_view value)
+{
+    std::string slug;
+    bool previousDash = false;
+    for (const auto character : value) {
+        const bool isAlphaNumeric =
+            (character >= 'a' && character <= 'z')
+            || (character >= 'A' && character <= 'Z')
+            || (character >= '0' && character <= '9');
+        if (isAlphaNumeric) {
+            slug += static_cast<char>(character >= 'A' && character <= 'Z' ? character - 'A' + 'a' : character);
+            previousDash = false;
+            continue;
+        }
+        if (!previousDash && !slug.empty()) {
+            slug += '-';
+            previousDash = true;
+        }
+    }
+    while (!slug.empty() && slug.back() == '-') {
+        slug.pop_back();
+    }
+    return slug.empty() ? "ai-task" : slug;
+}
+
+std::string SequencePrefix(int sequence)
+{
+    std::ostringstream output;
+    output << std::setw(6) << std::setfill('0') << sequence;
+    return output.str();
+}
+
+std::string BuildManualQueueRequestJson(const AiExecutionRequest& request, int sequence)
+{
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.manualAiQueue.request\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"id\": " << Quote(request.requestId) << ",\n";
+    output << "  \"sequence\": " << sequence << ",\n";
+    output << "  \"createdAt\": \"generated-by-artforge\",\n";
+    output << "  \"providerKind\": " << Quote(ToDisplayName(request.providerKind)) << ",\n";
+    output << "  \"requestedOperation\": " << Quote(request.requestedOperation) << ",\n";
+    output << "  \"promptPackage\": {\n";
+    output << "    \"path\": " << Quote(request.promptPackagePath.generic_string()) << ",\n";
+    output << "    \"summary\": " << Quote(request.promptPackageSummary) << "\n";
+    output << "  },\n";
+    output << "  \"copyPastePromptPath\": " << Quote(request.locations.promptTextPath.filename().generic_string()) << ",\n";
+    output << "  \"expectedResultPath\": " << Quote(request.locations.expectedResultPath.filename().generic_string()) << ",\n";
+    output << "  \"statusPath\": " << Quote(request.locations.statusPath.filename().generic_string()) << ",\n";
+    output << "  \"resultSchemaPath\": " << Quote(request.resultSchemaPath.generic_string()) << ",\n";
+    output << "  \"target\": {\n";
+    output << "    \"workPath\": " << Quote(request.target.workPath.generic_string()) << ",\n";
+    output << "    \"domain\": " << Quote(request.target.domain) << ",\n";
+    output << "    \"itemType\": " << Quote(request.target.itemType) << ",\n";
+    output << "    \"itemId\": " << Quote(request.target.itemId) << ",\n";
+    output << "    \"itemIndex\": " << request.target.itemIndex << ",\n";
+    output << "    \"field\": " << Quote(request.target.field) << "\n";
+    output << "  }\n";
+    output << "}\n";
+    return output.str();
+}
+
+std::string BuildManualQueueStatusJson(const AiExecutionRequest& request, AiExecutionStatus status)
+{
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"format\": \"artforge.manualAiQueue.status\",\n";
+    output << "  \"schemaVersion\": 1,\n";
+    output << "  \"requestId\": " << Quote(request.requestId) << ",\n";
+    output << "  \"status\": " << Quote(ToDisplayName(status)) << ",\n";
+    output << "  \"updatedAt\": \"generated-by-artforge\",\n";
+    output << "  \"diagnostics\": []\n";
+    output << "}\n";
+    return output.str();
+}
+
+bool WriteTextFile(const std::filesystem::path& path, std::string_view content)
+{
+    std::ofstream output{path, std::ios::binary};
+    if (!output) {
+        return false;
+    }
+    output << content;
+    return static_cast<bool>(output);
 }
 
 }
@@ -856,6 +970,84 @@ std::string DescribeAiExecutionModel()
     }
     output << "Request fields exclude API credentials and other secrets.\n";
     output << "Providers return validated AI result JSON before pending-suggestion import.\n";
+    return output.str();
+}
+
+ManualAiQueueWriteResult WriteManualAiQueueRequest(const ManualAiQueueWriteRequest& request)
+{
+    ManualAiQueueWriteResult result;
+    result.execution = request.execution;
+    result.execution.providerKind = AiProviderKind::ManualQueue;
+    result.providerResult.providerKind = AiProviderKind::ManualQueue;
+
+    if (result.execution.queueRoot.empty()) {
+        result.diagnostics.push_back("queue root is required");
+    }
+    if (request.promptText.empty()) {
+        result.diagnostics.push_back("prompt text is required");
+    }
+    if (result.execution.requestedOperation.empty()) {
+        result.diagnostics.push_back("requested operation is required");
+    }
+    if (result.execution.target.domain.empty() || result.execution.target.itemType.empty()) {
+        result.diagnostics.push_back("target domain and item type are required");
+    }
+    if (!result.diagnostics.empty()) {
+        result.providerResult.status = AiExecutionStatus::Failed;
+        return result;
+    }
+
+    std::error_code error;
+    std::filesystem::create_directories(result.execution.queueRoot, error);
+    if (error) {
+        result.diagnostics.push_back("could not create queue root: " + error.message());
+        result.providerResult.status = AiExecutionStatus::Failed;
+        return result;
+    }
+
+    const int sequence = NextManualQueueSequence(result.execution.queueRoot);
+    const auto prefix = SequencePrefix(sequence);
+    const auto slug = SafeSlug(result.execution.target.domain + "-" + result.execution.requestedOperation);
+    const auto stem = prefix + "-" + slug;
+    result.execution.requestId = "manual-" + stem;
+    result.execution.locations.requestPath = result.execution.queueRoot / (stem + ".request.json");
+    result.execution.locations.promptTextPath = result.execution.queueRoot / (stem + ".prompt.txt");
+    result.execution.locations.expectedResultPath = result.execution.queueRoot / (stem + ".result.json");
+    result.execution.locations.statusPath = result.execution.queueRoot / (stem + ".status.json");
+
+    const auto requestJson = BuildManualQueueRequestJson(result.execution, sequence);
+    const auto statusJson = BuildManualQueueStatusJson(result.execution, AiExecutionStatus::Queued);
+    if (!WriteTextFile(result.execution.locations.requestPath, requestJson)) {
+        result.diagnostics.push_back("could not write request file");
+    }
+    if (!WriteTextFile(result.execution.locations.promptTextPath, request.promptText)) {
+        result.diagnostics.push_back("could not write prompt text file");
+    }
+    if (!WriteTextFile(result.execution.locations.statusPath, statusJson)) {
+        result.diagnostics.push_back("could not write status file");
+    }
+
+    result.ok = result.diagnostics.empty();
+    result.providerResult.requestId = result.execution.requestId;
+    result.providerResult.locations = result.execution.locations;
+    result.providerResult.status = result.ok ? AiExecutionStatus::Queued : AiExecutionStatus::Failed;
+    result.providerResult.diagnostics = result.diagnostics;
+    return result;
+}
+
+std::string DescribeManualAiQueueWriteResult(const ManualAiQueueWriteResult& result)
+{
+    std::ostringstream output;
+    output << "Manual AI queue write: " << (result.ok ? "OK" : "failed") << "\n";
+    output << "Request id: " << result.execution.requestId << "\n";
+    output << "Status: " << ToDisplayName(result.providerResult.status) << "\n";
+    output << "Request file: " << result.execution.locations.requestPath.generic_string() << "\n";
+    output << "Prompt text file: " << result.execution.locations.promptTextPath.generic_string() << "\n";
+    output << "Expected result file: " << result.execution.locations.expectedResultPath.generic_string() << "\n";
+    output << "Status file: " << result.execution.locations.statusPath.generic_string() << "\n";
+    for (const auto& diagnostic : result.diagnostics) {
+        output << "Diagnostic: " << diagnostic << "\n";
+    }
     return output.str();
 }
 

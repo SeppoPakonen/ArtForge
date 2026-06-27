@@ -81,6 +81,11 @@ bool IsDescribeAiExecutionModelCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-ai-execution-model";
 }
 
+bool IsWriteManualAiQueueCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 9 && std::wstring_view{arguments[1]} == L"--write-manual-ai-queue";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -386,6 +391,60 @@ std::string ImportAiResultPending(wchar_t** arguments)
     return output.str();
 }
 
+std::string DefaultTargetField(std::string_view domain, std::string_view itemType)
+{
+    if (domain == "lyrics" && itemType == "lyricLine") {
+        return "text";
+    }
+    if (domain == "visualArt" && itemType == "visualLayer") {
+        return "intent";
+    }
+    if (domain == "scriptStoryboard" && itemType == "scriptBlock") {
+        return "text";
+    }
+    return "content";
+}
+
+std::string WriteManualAiQueue(wchar_t** arguments)
+{
+    const auto queueRoot = std::filesystem::path{arguments[2]};
+    const auto workPath = std::filesystem::path{arguments[3]};
+    const auto domain = WideToUtf8(arguments[4]);
+    const auto itemType = WideToUtf8(arguments[5]);
+    const auto itemId = WideToUtf8(arguments[6]);
+    const auto itemIndex = std::stoi(std::wstring{arguments[7]});
+    const auto operation = WideToUtf8(arguments[8]);
+
+    const auto prompt = ArtForge::Services::BuildSelectedItemPromptCommand({
+        workPath,
+        domain,
+        itemType,
+        itemId,
+        itemIndex,
+        operation,
+    });
+
+    ArtForge::Prompting::AiExecutionRequest execution;
+    execution.providerKind = ArtForge::Prompting::AiProviderKind::ManualQueue;
+    execution.queueRoot = queueRoot;
+    execution.promptPackagePath = workPath;
+    execution.promptPackageSummary = "Selected item prompt package";
+    execution.resultSchemaPath = "docs/prompting/ai-result-contract.md";
+    execution.requestedOperation = operation;
+    execution.target.workPath = workPath;
+    execution.target.domain = domain;
+    execution.target.itemType = itemType;
+    execution.target.itemId = itemId;
+    execution.target.itemIndex = itemIndex;
+    execution.target.field = DefaultTargetField(domain, itemType);
+
+    const auto result = ArtForge::Prompting::WriteManualAiQueueRequest({
+        execution,
+        prompt.promptDebugDump,
+    });
+    return ArtForge::Prompting::DescribeManualAiQueueWriteResult(result);
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -452,6 +511,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return 0;
+    }
+    if (arguments != nullptr && IsWriteManualAiQueueCommand(argumentCount, arguments)) {
+        const auto result = WriteManualAiQueue(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Manual AI queue write: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

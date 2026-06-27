@@ -135,6 +135,18 @@ struct AiExecutionResult {
     std::vector<PendingSuggestion> pendingSuggestions;
 };
 
+struct ManualAiQueueWriteRequest {
+    AiExecutionRequest execution;
+    std::string promptText;
+};
+
+struct ManualAiQueueWriteResult {
+    bool ok{};
+    AiExecutionRequest execution;
+    AiExecutionResult providerResult;
+    std::vector<std::string> diagnostics;
+};
+
 struct PromptLayerDescriptor {
     PromptLayer layer;
     std::string_view displayName;
@@ -208,6 +220,8 @@ AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText);
 std::string DescribeAiResultValidation(const AiResultValidationResult& result);
 std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggestion);
 std::string DescribeAiExecutionModel();
+ManualAiQueueWriteResult WriteManualAiQueueRequest(const ManualAiQueueWriteRequest& request);
+std::string DescribeManualAiQueueWriteResult(const ManualAiQueueWriteResult& result);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},
