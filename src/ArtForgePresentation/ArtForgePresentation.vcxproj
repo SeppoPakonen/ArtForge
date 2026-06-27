@@ -15,13 +15,16 @@
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClInclude Include="include\ArtForge\Presentation\PresentationModels.hpp" />
+    <ClInclude Include="include\ArtForge\Presentation\ScopeNavigationAdapter.hpp" />
     <ClInclude Include="include\ArtForge\Presentation\WorkAppPresentationAdapter.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\PresentationModels.cpp" />
+    <ClCompile Include="src\ScopeNavigationAdapter.cpp" />
     <ClCompile Include="src\WorkAppPresentationAdapter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ArtForgeCore\ArtForgeCore.vcxproj"><Project>{8A1C7949-297C-4EB8-8468-1C612935D372}</Project></ProjectReference>
     <ProjectReference Include="..\ArtForgeFiles\ArtForgeFiles.vcxproj"><Project>{6D47E1B3-DF0D-48E2-B640-A91FE28587F5}</Project></ProjectReference>
     <ProjectReference Include="..\ArtForgeServices\ArtForgeServices.vcxproj"><Project>{6CD6F39D-826F-4595-91F1-E8906512B7A8}</Project></ProjectReference>
   </ItemGroup>

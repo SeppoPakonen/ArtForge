@@ -9,6 +9,7 @@
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
+#include "ArtForge/Presentation/ScopeNavigationAdapter.hpp"
 #include "ArtForge/Presentation/WorkAppPresentationAdapter.hpp"
 #include "ArtForge/Prompting/PromptPackage.hpp"
 #include "ArtForge/Services/EditCommandService.hpp"
@@ -96,6 +97,16 @@ std::wstring Utf8ToWide(std::string_view value)
         converted.data(),
         requiredLength);
     return converted;
+}
+
+std::string WideToNarrowAscii(std::wstring_view value)
+{
+    std::string narrowed;
+    narrowed.reserve(value.size());
+    for (const auto character : value) {
+        narrowed.push_back(static_cast<char>(character));
+    }
+    return narrowed;
 }
 
 std::wstring FirstCommandLinePath(wchar_t* commandLine)
@@ -396,12 +407,25 @@ void PopulateDirectScopeNavigation(HWND tree, const ScopeShellState& state)
 void PopulateNavigationTree(HWND tree, const ScopeShellState& state)
 {
     TreeView_DeleteAllItems(tree);
-    if (!state.openedPath.empty() && state.descriptor.scope == ArtForge::Core::ScopeKind::Solution) {
-        PopulateSolutionNavigation(tree, std::filesystem::path{state.openedPath});
-        return;
-    }
 
-    PopulateDirectScopeNavigation(tree, state);
+    const auto model = ArtForge::Presentation::BuildScopeNavigationModel(
+        state.descriptor.scope,
+        std::filesystem::path{state.openedPath},
+        WideToNarrowAscii(state.loadStatusText),
+        WideToNarrowAscii(state.loadDetailText));
+
+    const auto renderNode = [&](const ArtForge::Presentation::NavigationTreeNodeModel& node, HTREEITEM parent, const auto& renderRef) -> HTREEITEM {
+        const auto item = InsertTreeItem(tree, parent, Utf8ToWide(node.label));
+        for (const auto& child : node.children) {
+            renderRef(child, item, renderRef);
+        }
+        TreeView_Expand(tree, item, TVE_EXPAND);
+        return item;
+    };
+
+    for (const auto& root : model.roots) {
+        renderNode(root, TVI_ROOT, renderNode);
+    }
 }
 
 void UpdateFileStatus(ScopeShellState& state)
