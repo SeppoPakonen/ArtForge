@@ -3,6 +3,7 @@
 #include "ArtForge/UiWin32/CommonControls.hpp"
 #include "ArtForge/UiWin32/PaneLayout.hpp"
 #include "ArtForge/UiWin32/PropertyPanel.hpp"
+#include "ArtForge/UiWin32/UiMetrics.hpp"
 
 #include "ArtForge/Files/ProjectGraph.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
@@ -14,6 +15,8 @@
 
 #include <commctrl.h>
 #include <shellapi.h>
+
+#pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #include <cstdlib>
 #include <filesystem>
@@ -38,6 +41,7 @@ constexpr int DetailListId = 2005;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
+    ShellUiMetrics metrics{DefaultShellUiMetrics()};
     std::wstring openedPath;
     std::wstring loadStatusText;
     std::wstring loadDetailText;
@@ -693,7 +697,10 @@ void LayoutChildren(HWND window)
         statusHeight = statusRect.bottom - statusRect.top;
     }
 
-    const auto rectangles = ArtForge::UiWin32::CalculateThreePaneLayout(client, statusHeight);
+    const auto rectangles = ArtForge::UiWin32::CalculateThreePaneLayout(
+        client,
+        statusHeight,
+        ArtForge::UiWin32::ToPaneLayoutMetrics(state->metrics));
     ArtForge::UiWin32::ApplyThreePaneLayout(
         state->navigationTree,
         state->summaryControl,
@@ -725,6 +732,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             reinterpret_cast<HMENU>(static_cast<INT_PTR>(NavigationTreeId)),
             create->hInstance,
             nullptr);
+        ApplyDefaultGuiFont(state->navigationTree);
         PopulateNavigationTree(state->navigationTree, *state);
 
         if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
@@ -745,6 +753,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(SummaryControlId)),
                 create->hInstance,
                 nullptr);
+            ApplyDefaultGuiFont(state->summaryControl);
         }
 
         state->detailTabs.Create(window, DetailTabId, create->hInstance);
@@ -767,6 +776,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             reinterpret_cast<HMENU>(static_cast<INT_PTR>(StatusBarId)),
             create->hInstance,
             nullptr);
+        ApplyDefaultGuiFont(state->statusBar);
 
         LayoutChildren(window);
         return 0;
@@ -873,15 +883,13 @@ int RunScopeShell(
     ArtForge::Core::ScopeShellDescriptor descriptor,
     wchar_t* commandLine)
 {
-    INITCOMMONCONTROLSEX commonControls{};
-    commonControls.dwSize = sizeof(commonControls);
-    commonControls.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES | ICC_TREEVIEW_CLASSES | ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES;
-    InitCommonControlsEx(&commonControls);
+    InitializeCommonControlsForShell();
 
     RegisterShellWindowClass(instance);
 
     ScopeShellState state{
         descriptor,
+        DefaultShellUiMetrics(),
         FirstCommandLinePath(commandLine),
     };
     UpdateFileStatus(state);

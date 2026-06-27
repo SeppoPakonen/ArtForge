@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ArtForge/UiWin32/UiMetrics.hpp"
+
 #include <windows.h>
 
 namespace ArtForge::UiWin32 {
@@ -22,6 +24,8 @@ PaneLayoutRectangles CalculateThreePaneLayout(
     const RECT& client,
     int bottomReservedHeight,
     const PaneLayoutMetrics& metrics = {});
+
+PaneLayoutMetrics ToPaneLayoutMetrics(const ShellUiMetrics& metrics);
 
 void ApplyThreePaneLayout(
     HWND leftPane,

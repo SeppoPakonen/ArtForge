@@ -1,5 +1,7 @@
 #include "ArtForge/UiWin32/CommonControls.hpp"
 
+#include "ArtForge/UiWin32/UiMetrics.hpp"
+
 #include <commctrl.h>
 
 namespace ArtForge::UiWin32 {
@@ -22,6 +24,7 @@ HWND ListViewReport::Create(HWND parent, int controlId, HINSTANCE instance)
 
     if (window_ != nullptr) {
         ListView_SetExtendedListViewStyle(window_, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        ApplyDefaultGuiFont(window_);
     }
 
     return window_;
@@ -104,6 +107,7 @@ HWND TabControl::Create(HWND parent, int controlId, HINSTANCE instance)
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(controlId)),
         instance,
         nullptr);
+    ApplyDefaultGuiFont(window_);
     return window_;
 }
 

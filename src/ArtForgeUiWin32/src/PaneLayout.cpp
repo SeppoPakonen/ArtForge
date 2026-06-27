@@ -41,6 +41,17 @@ int MaxInt(int left, int right)
 
 }
 
+PaneLayoutMetrics ToPaneLayoutMetrics(const ShellUiMetrics& metrics)
+{
+    return {
+        metrics.margin,
+        metrics.gap,
+        metrics.navigationWidth,
+        metrics.inspectorWidth,
+        metrics.minimumDocumentWidth,
+    };
+}
+
 PaneLayoutRectangles CalculateThreePaneLayout(
     const RECT& client,
     int bottomReservedHeight,
