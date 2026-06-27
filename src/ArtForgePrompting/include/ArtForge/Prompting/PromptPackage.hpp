@@ -51,6 +51,29 @@ enum class PendingSuggestionStatus {
     Rejected
 };
 
+enum class AiProviderKind {
+    Unknown,
+    ManualQueue,
+    OpenAI,
+    Anthropic,
+    AlibabaCloud,
+    Unsupported
+};
+
+enum class AiExecutionStatus {
+    Draft,
+    Queued,
+    WaitingForResult,
+    ResultFound,
+    ResultInvalid,
+    ImportedPendingSuggestion,
+    TargetMismatch,
+    NotConfigured,
+    NotImplemented,
+    UnsupportedProvider,
+    Failed
+};
+
 struct PendingSuggestionTarget {
     std::filesystem::path workPath;
     std::string domain;
@@ -73,6 +96,41 @@ struct PendingSuggestion {
 
 struct AiResultValidationResult {
     bool ok{};
+    std::vector<std::string> diagnostics;
+    std::vector<PendingSuggestion> pendingSuggestions;
+};
+
+struct AiResultLocation {
+    std::filesystem::path requestPath;
+    std::filesystem::path promptTextPath;
+    std::filesystem::path expectedResultPath;
+    std::filesystem::path statusPath;
+    std::filesystem::path importedSuggestionsPath;
+};
+
+struct AiExecutionError {
+    std::string code;
+    std::string message;
+};
+
+struct AiExecutionRequest {
+    std::string requestId;
+    AiProviderKind providerKind{AiProviderKind::Unknown};
+    std::filesystem::path queueRoot;
+    std::filesystem::path promptPackagePath;
+    std::string promptPackageSummary;
+    std::filesystem::path resultSchemaPath;
+    std::string requestedOperation;
+    PendingSuggestionTarget target;
+    AiResultLocation locations;
+};
+
+struct AiExecutionResult {
+    std::string requestId;
+    AiProviderKind providerKind{AiProviderKind::Unknown};
+    AiExecutionStatus status{AiExecutionStatus::Draft};
+    AiResultLocation locations;
+    std::vector<AiExecutionError> errors;
     std::vector<std::string> diagnostics;
     std::vector<PendingSuggestion> pendingSuggestions;
 };
@@ -135,6 +193,8 @@ std::string_view ToDisplayName(PromptInputFormat format);
 std::string_view ToDisplayName(AiOutputSection section);
 std::string_view ToDisplayName(ImportValidationStep step);
 std::string_view ToDisplayName(PendingSuggestionStatus status);
+std::string_view ToDisplayName(AiProviderKind provider);
+std::string_view ToDisplayName(AiExecutionStatus status);
 
 CreativeSubjectProfileFields PlannedCreativeSubjectProfileFields();
 std::string_view PromptPackageHistoryGenerationOperation();
@@ -147,6 +207,7 @@ std::string SerializePromptPackageDebugDump(const PromptPackageBuildResult& resu
 AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText);
 std::string DescribeAiResultValidation(const AiResultValidationResult& result);
 std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggestion);
+std::string DescribeAiExecutionModel();
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},

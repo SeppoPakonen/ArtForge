@@ -484,6 +484,56 @@ std::string_view ToDisplayName(PendingSuggestionStatus status)
     return "unknown";
 }
 
+std::string_view ToDisplayName(AiProviderKind provider)
+{
+    switch (provider) {
+    case AiProviderKind::Unknown:
+        return "unknown";
+    case AiProviderKind::ManualQueue:
+        return "manualQueue";
+    case AiProviderKind::OpenAI:
+        return "openai";
+    case AiProviderKind::Anthropic:
+        return "anthropic";
+    case AiProviderKind::AlibabaCloud:
+        return "alibabaCloud";
+    case AiProviderKind::Unsupported:
+        return "unsupported";
+    }
+
+    return "unknown";
+}
+
+std::string_view ToDisplayName(AiExecutionStatus status)
+{
+    switch (status) {
+    case AiExecutionStatus::Draft:
+        return "draft";
+    case AiExecutionStatus::Queued:
+        return "queued";
+    case AiExecutionStatus::WaitingForResult:
+        return "waitingForResult";
+    case AiExecutionStatus::ResultFound:
+        return "resultFound";
+    case AiExecutionStatus::ResultInvalid:
+        return "resultInvalid";
+    case AiExecutionStatus::ImportedPendingSuggestion:
+        return "importedPendingSuggestion";
+    case AiExecutionStatus::TargetMismatch:
+        return "targetMismatch";
+    case AiExecutionStatus::NotConfigured:
+        return "notConfigured";
+    case AiExecutionStatus::NotImplemented:
+        return "notImplemented";
+    case AiExecutionStatus::UnsupportedProvider:
+        return "unsupportedProvider";
+    case AiExecutionStatus::Failed:
+        return "failed";
+    }
+
+    return "unknown";
+}
+
 CreativeSubjectProfileFields PlannedCreativeSubjectProfileFields()
 {
     return {
@@ -770,6 +820,42 @@ std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggesti
     }
     output << "]";
     output << "}";
+    return output.str();
+}
+
+std::string DescribeAiExecutionModel()
+{
+    std::ostringstream output;
+    output << "AI execution request model\n";
+    output << "Provider kinds:\n";
+    for (const auto provider : {
+             AiProviderKind::ManualQueue,
+             AiProviderKind::OpenAI,
+             AiProviderKind::Anthropic,
+             AiProviderKind::AlibabaCloud,
+             AiProviderKind::Unknown,
+             AiProviderKind::Unsupported,
+         }) {
+        output << "- " << ToDisplayName(provider) << "\n";
+    }
+    output << "Statuses:\n";
+    for (const auto status : {
+             AiExecutionStatus::Draft,
+             AiExecutionStatus::Queued,
+             AiExecutionStatus::WaitingForResult,
+             AiExecutionStatus::ResultFound,
+             AiExecutionStatus::ResultInvalid,
+             AiExecutionStatus::ImportedPendingSuggestion,
+             AiExecutionStatus::TargetMismatch,
+             AiExecutionStatus::NotConfigured,
+             AiExecutionStatus::NotImplemented,
+             AiExecutionStatus::UnsupportedProvider,
+             AiExecutionStatus::Failed,
+         }) {
+        output << "- " << ToDisplayName(status) << "\n";
+    }
+    output << "Request fields exclude API credentials and other secrets.\n";
+    output << "Providers return validated AI result JSON before pending-suggestion import.\n";
     return output.str();
 }
 

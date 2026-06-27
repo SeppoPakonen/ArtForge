@@ -76,6 +76,11 @@ bool IsImportAiResultPendingCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 7 && std::wstring_view{arguments[1]} == L"--import-ai-result-pending";
 }
 
+bool IsDescribeAiExecutionModelCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-ai-execution-model";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -441,6 +446,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("Import status: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsDescribeAiExecutionModelCommand(argumentCount, arguments)) {
+        const auto result = ArtForge::Prompting::DescribeAiExecutionModel();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return 0;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);
