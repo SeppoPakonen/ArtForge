@@ -2,11 +2,22 @@
 
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <winhttp.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <optional>
 #include <sstream>
+
+#pragma comment(lib, "winhttp.lib")
 
 namespace ArtForge::Prompting {
 
@@ -50,6 +61,77 @@ std::string Quote(std::string_view value)
 {
     return "\"" + JsonEscape(value) + "\"";
 }
+
+std::wstring Utf8ToWide(std::string_view value)
+{
+    if (value.empty()) {
+        return {};
+    }
+    const auto size = MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0);
+    if (size <= 0) {
+        return std::wstring{value.begin(), value.end()};
+    }
+    std::wstring result(static_cast<std::size_t>(size), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), result.data(), size);
+    return result;
+}
+
+std::string WideToUtf8(std::wstring_view value)
+{
+    if (value.empty()) {
+        return {};
+    }
+    const auto size = WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (size <= 0) {
+        std::string fallback;
+        for (const auto character : value) {
+            fallback += character <= 0x7f ? static_cast<char>(character) : '?';
+        }
+        return fallback;
+    }
+    std::string result(static_cast<std::size_t>(size), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), result.data(), size, nullptr, nullptr);
+    return result;
+}
+
+std::string LastWin32ErrorMessage()
+{
+    const auto error = GetLastError();
+    if (error == 0) {
+        return {};
+    }
+    wchar_t* buffer = nullptr;
+    const auto length = FormatMessageW(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<LPWSTR>(&buffer),
+        0,
+        nullptr);
+    std::string message = "WinHTTP error " + std::to_string(error);
+    if (length > 0 && buffer != nullptr) {
+        message += ": " + WideToUtf8(std::wstring_view{buffer, length});
+    }
+    if (buffer != nullptr) {
+        LocalFree(buffer);
+    }
+    return message;
+}
+
+struct WinHttpHandle {
+    HINTERNET value{};
+    explicit WinHttpHandle(HINTERNET handle = nullptr) : value(handle) {}
+    ~WinHttpHandle()
+    {
+        if (value != nullptr) {
+            WinHttpCloseHandle(value);
+        }
+    }
+    WinHttpHandle(const WinHttpHandle&) = delete;
+    WinHttpHandle& operator=(const WinHttpHandle&) = delete;
+    operator HINTERNET() const { return value; }
+};
 
 std::optional<WorkContext> FindWorkContext(
     const ArtForge::Files::SolutionProjectGraph& graph,
@@ -1168,6 +1250,162 @@ std::string DescribeManualAiQueuePollResult(const ManualAiQueuePollResult& resul
             output << "Diagnostic: " << diagnostic << "\n";
         }
     }
+    return output.str();
+}
+
+HttpJsonPostResponse FakeHttpJsonPostResponse(int statusCode, std::string body)
+{
+    HttpJsonPostResponse response;
+    response.ok = statusCode >= 200 && statusCode < 300;
+    response.statusCode = statusCode;
+    response.body = std::move(body);
+    if (!response.ok) {
+        response.errorCode = "http_status";
+        response.errorMessage = "HTTP status " + std::to_string(statusCode);
+    }
+    return response;
+}
+
+HttpJsonPostResponse PostJsonWithWinHttp(const HttpJsonPostRequest& request)
+{
+    HttpJsonPostResponse response;
+    const auto wideUrl = Utf8ToWide(request.url);
+    URL_COMPONENTS parts{};
+    parts.dwStructSize = sizeof(parts);
+    parts.dwSchemeLength = static_cast<DWORD>(-1);
+    parts.dwHostNameLength = static_cast<DWORD>(-1);
+    parts.dwUrlPathLength = static_cast<DWORD>(-1);
+    parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+    if (!WinHttpCrackUrl(wideUrl.c_str(), static_cast<DWORD>(wideUrl.size()), 0, &parts)) {
+        response.errorCode = "url_parse_failed";
+        response.errorMessage = LastWin32ErrorMessage();
+        return response;
+    }
+
+    const std::wstring host{parts.lpszHostName, parts.dwHostNameLength};
+    std::wstring path{parts.lpszUrlPath, parts.dwUrlPathLength};
+    if (parts.dwExtraInfoLength > 0) {
+        path.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
+    }
+
+    WinHttpHandle session{WinHttpOpen(L"ArtForge/0.1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)};
+    if (session.value == nullptr) {
+        response.errorCode = "session_failed";
+        response.errorMessage = LastWin32ErrorMessage();
+        return response;
+    }
+    if (request.timeoutMilliseconds > 0) {
+        WinHttpSetTimeouts(session, request.timeoutMilliseconds, request.timeoutMilliseconds, request.timeoutMilliseconds, request.timeoutMilliseconds);
+    }
+
+    WinHttpHandle connection{WinHttpConnect(session, host.c_str(), parts.nPort, 0)};
+    if (connection.value == nullptr) {
+        response.errorCode = "connect_failed";
+        response.errorMessage = LastWin32ErrorMessage();
+        return response;
+    }
+
+    const auto secure = parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
+    WinHttpHandle httpRequest{WinHttpOpenRequest(connection, L"POST", path.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, secure)};
+    if (httpRequest.value == nullptr) {
+        response.errorCode = "request_failed";
+        response.errorMessage = LastWin32ErrorMessage();
+        return response;
+    }
+
+    std::wstring headers = L"Content-Type: application/json; charset=utf-8\r\nAccept: application/json\r\n";
+    for (const auto& header : request.headers) {
+        headers += Utf8ToWide(header.name);
+        headers += L": ";
+        headers += Utf8ToWide(header.value);
+        headers += L"\r\n";
+    }
+
+    const auto bodySize = static_cast<DWORD>(request.jsonBody.size());
+    if (!WinHttpSendRequest(
+            httpRequest,
+            headers.c_str(),
+            static_cast<DWORD>(headers.size()),
+            request.jsonBody.empty() ? WINHTTP_NO_REQUEST_DATA : const_cast<char*>(request.jsonBody.data()),
+            bodySize,
+            bodySize,
+            0)) {
+        response.errorCode = "send_failed";
+        response.errorMessage = LastWin32ErrorMessage();
+        return response;
+    }
+
+    if (!WinHttpReceiveResponse(httpRequest, nullptr)) {
+        response.errorCode = "receive_failed";
+        response.errorMessage = LastWin32ErrorMessage();
+        return response;
+    }
+
+    DWORD statusCode = 0;
+    DWORD statusSize = sizeof(statusCode);
+    if (WinHttpQueryHeaders(httpRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusSize, WINHTTP_NO_HEADER_INDEX)) {
+        response.statusCode = static_cast<int>(statusCode);
+    }
+
+    for (;;) {
+        DWORD available = 0;
+        if (!WinHttpQueryDataAvailable(httpRequest, &available)) {
+            response.errorCode = "read_available_failed";
+            response.errorMessage = LastWin32ErrorMessage();
+            return response;
+        }
+        if (available == 0) {
+            break;
+        }
+        std::string chunk(available, '\0');
+        DWORD read = 0;
+        if (!WinHttpReadData(httpRequest, chunk.data(), available, &read)) {
+            response.errorCode = "read_failed";
+            response.errorMessage = LastWin32ErrorMessage();
+            return response;
+        }
+        chunk.resize(read);
+        response.body += chunk;
+    }
+
+    response.ok = response.statusCode >= 200 && response.statusCode < 300;
+    if (!response.ok) {
+        response.errorCode = "http_status";
+        response.errorMessage = "HTTP status " + std::to_string(response.statusCode);
+    }
+    return response;
+}
+
+std::string DescribeHttpJsonPostResponse(const HttpJsonPostResponse& response)
+{
+    std::ostringstream output;
+    output << "HTTP JSON POST: " << (response.ok ? "OK" : "failed") << "\n";
+    output << "Status code: " << response.statusCode << "\n";
+    if (!response.errorCode.empty()) {
+        output << "Error code: " << response.errorCode << "\n";
+        output << "Error message: " << response.errorMessage << "\n";
+    }
+    output << "Body bytes: " << response.body.size() << "\n";
+    if (!response.body.empty()) {
+        output << "Body: " << response.body << "\n";
+    }
+    return output.str();
+}
+
+std::string DescribeHttpJsonPostSmokeExamples()
+{
+    std::ostringstream output;
+    const HttpJsonPostRequest request{
+        "https://example.invalid/v1/smoke",
+        {{"X-ArtForge-Test", "fake-transport"}},
+        "{\"hello\":\"world\"}",
+        1000,
+    };
+    (void)request;
+    output << "Fake transport success\n";
+    output << DescribeHttpJsonPostResponse(FakeHttpJsonPostResponse(200, "{\"ok\":true}")) << "\n";
+    output << "Fake transport failure\n";
+    output << DescribeHttpJsonPostResponse(FakeHttpJsonPostResponse(503, "{\"error\":\"unavailable\"}"));
     return output.str();
 }
 

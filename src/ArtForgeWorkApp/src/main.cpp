@@ -102,6 +102,11 @@ bool IsDescribeAiProviderConfigCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-ai-provider-config";
 }
 
+bool IsSmokeHttpJsonPostCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-http-json-post";
+}
+
 bool IsDispatchAiProviderCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--dispatch-ai-provider";
@@ -789,6 +794,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return 0;
+    }
+    if (arguments != nullptr && IsSmokeHttpJsonPostCommand(argumentCount, arguments)) {
+        const auto result = ArtForge::Prompting::DescribeHttpJsonPostSmokeExamples();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Fake transport success") != std::string::npos
+            && result.find("HTTP JSON POST: OK") != std::string::npos
+            && result.find("HTTP JSON POST: failed") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr && IsDispatchAiProviderCommand(argumentCount, arguments)) {
         const auto result = DispatchAiProvider(argumentCount, arguments);

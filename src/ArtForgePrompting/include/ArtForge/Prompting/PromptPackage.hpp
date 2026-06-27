@@ -4,6 +4,7 @@
 
 #include <array>
 #include <filesystem>
+#include <utility>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -173,6 +174,26 @@ struct AiProviderDispatchRequest {
     std::vector<AiProviderConfiguration> providerConfigurations;
 };
 
+struct HttpHeader {
+    std::string name;
+    std::string value;
+};
+
+struct HttpJsonPostRequest {
+    std::string url;
+    std::vector<HttpHeader> headers;
+    std::string jsonBody;
+    int timeoutMilliseconds{30000};
+};
+
+struct HttpJsonPostResponse {
+    bool ok{};
+    int statusCode{};
+    std::string body;
+    std::string errorCode;
+    std::string errorMessage;
+};
+
 struct PromptLayerDescriptor {
     PromptLayer layer;
     std::string_view displayName;
@@ -254,6 +275,10 @@ ManualAiQueuePollResult PollManualAiQueueResult(const ManualAiQueuePollRequest& 
 std::string DescribeManualAiQueuePollResult(const ManualAiQueuePollResult& result);
 AiExecutionResult DispatchAiExecutionRequestNoNetwork(const AiProviderDispatchRequest& request);
 std::string DescribeAiExecutionResult(const AiExecutionResult& result);
+HttpJsonPostResponse PostJsonWithWinHttp(const HttpJsonPostRequest& request);
+HttpJsonPostResponse FakeHttpJsonPostResponse(int statusCode, std::string body);
+std::string DescribeHttpJsonPostResponse(const HttpJsonPostResponse& response);
+std::string DescribeHttpJsonPostSmokeExamples();
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},
