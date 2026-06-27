@@ -493,6 +493,17 @@ void AddPendingSuggestionReviewProperties(PropertyListModel& properties, const P
     if (!review.rationale.empty()) {
         AddProperty(properties, "Suggestion rationale", review.rationale);
     }
+    const auto compare = BuildSuggestionCompareModel(
+        review.targetSummary,
+        review.originalText,
+        review.currentText,
+        review.proposedText);
+    AddProperty(properties, "Compare current matches original", compare.currentMatchesOriginal ? "yes" : "no");
+    AddProperty(properties, "Compare current differs from original", compare.currentDiffersFromOriginal ? "yes" : "no");
+    AddProperty(properties, "Compare suggestion equals current", compare.suggestionEqualsCurrent ? "yes" : "no");
+    for (std::size_t index = 0; index < compare.diagnostics.size(); ++index) {
+        AddProperty(properties, "Compare diagnostic " + std::to_string(index + 1), compare.diagnostics[index]);
+    }
     AddProperty(properties, "Accept Suggestion command", review.acceptCommand.enabled ? "enabled" : "disabled");
     AddProperty(properties, "Reject Suggestion command", review.rejectCommand.enabled ? "enabled" : "disabled");
     for (std::size_t index = 0; index < review.diagnostics.size(); ++index) {
