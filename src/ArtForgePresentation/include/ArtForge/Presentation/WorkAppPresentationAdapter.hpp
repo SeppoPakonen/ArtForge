@@ -13,6 +13,7 @@ struct WorkAppPresentationModel {
     PropertyListModel properties;
     SelectionModel selection;
     PromptPreviewModel promptPreview;
+    ManualAiQueueModel manualAiQueue;
     DirtyStateModel dirtyState;
 };
 

@@ -4,6 +4,8 @@
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/Services/PromptCommandService.hpp"
 
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 
 namespace ArtForge::Presentation {
@@ -205,6 +207,73 @@ PromptPreviewModel BuildPromptPreview(const std::filesystem::path& workPath, con
     return preview;
 }
 
+std::filesystem::path DefaultManualQueueRoot()
+{
+    char* userProfile = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&userProfile, &length, "USERPROFILE") == 0 && userProfile != nullptr) {
+        std::filesystem::path path{userProfile};
+        free(userProfile);
+        return path / "Documents" / "ArtForge" / "ai-queue";
+    }
+    return std::filesystem::path{"ArtForge"} / "ai-queue";
+}
+
+std::string SafeSlug(std::string value)
+{
+    std::string slug;
+    bool previousDash = false;
+    for (auto character : value) {
+        const bool alphaNumeric =
+            (character >= 'a' && character <= 'z')
+            || (character >= 'A' && character <= 'Z')
+            || (character >= '0' && character <= '9');
+        if (alphaNumeric) {
+            slug += static_cast<char>(character >= 'A' && character <= 'Z' ? character - 'A' + 'a' : character);
+            previousDash = false;
+        } else if (!previousDash && !slug.empty()) {
+            slug += '-';
+            previousDash = true;
+        }
+    }
+    while (!slug.empty() && slug.back() == '-') {
+        slug.pop_back();
+    }
+    return slug.empty() ? "ai-task" : slug;
+}
+
+ManualAiQueueModel BuildManualAiQueueModel(const std::filesystem::path& workPath, const SelectionModel& selection)
+{
+    ManualAiQueueModel model;
+    model.queueRoot = DefaultManualQueueRoot().generic_string();
+    model.status = "Select a work item row to queue a manual AI task.";
+    if (!selection.hasSelection) {
+        model.diagnostics.push_back("No selected item.");
+        return model;
+    }
+
+    const std::string operation = "manual-queue-selected-item";
+    const auto prompt = ArtForge::Services::BuildSelectedItemPromptCommand({
+        workPath,
+        selection.domain,
+        selection.itemType,
+        selection.itemId,
+        selection.itemIndex,
+        operation,
+    });
+    model.available = prompt.command.status.ok;
+    model.copyPastePromptText = prompt.promptDebugDump;
+    const auto stem = "next-" + SafeSlug(selection.domain + "-" + operation);
+    model.requestFile = (DefaultManualQueueRoot() / (stem + ".request.json")).generic_string();
+    model.promptTextFile = (DefaultManualQueueRoot() / (stem + ".prompt.txt")).generic_string();
+    model.expectedResultFile = (DefaultManualQueueRoot() / (stem + ".result.json")).generic_string();
+    model.status = model.available ? "Ready to queue manual AI task." : "Manual queue prompt is not available.";
+    for (const auto& diagnostic : prompt.command.status.diagnostics) {
+        model.diagnostics.push_back(diagnostic.message);
+    }
+    return model;
+}
+
 void AddPromptPreviewProperties(PropertyListModel& properties, const PromptPreviewModel& preview)
 {
     AddProperty(properties, "Prompt preview", preview.available ? "available" : "not available");
@@ -220,6 +289,28 @@ void AddPromptPreviewProperties(PropertyListModel& properties, const PromptPrevi
     }
     for (std::size_t index = 0; index < preview.diagnostics.size(); ++index) {
         AddProperty(properties, "Prompt diagnostic " + std::to_string(index + 1), preview.diagnostics[index]);
+    }
+}
+
+void AddManualAiQueueProperties(PropertyListModel& properties, const ManualAiQueueModel& queue)
+{
+    AddProperty(properties, "Manual AI queue", queue.available ? "available" : "not available");
+    AddProperty(properties, "Manual queue root", queue.queueRoot);
+    AddProperty(properties, "Manual queue status", queue.status);
+    if (!queue.requestFile.empty()) {
+        AddProperty(properties, "Manual request file", queue.requestFile);
+    }
+    if (!queue.promptTextFile.empty()) {
+        AddProperty(properties, "Manual prompt text file", queue.promptTextFile);
+    }
+    if (!queue.expectedResultFile.empty()) {
+        AddProperty(properties, "Manual expected result", queue.expectedResultFile);
+    }
+    if (!queue.copyPastePromptText.empty()) {
+        AddProperty(properties, "Copy-paste prompt text", queue.copyPastePromptText);
+    }
+    for (std::size_t index = 0; index < queue.diagnostics.size(); ++index) {
+        AddProperty(properties, "Manual queue diagnostic " + std::to_string(index + 1), queue.diagnostics[index]);
     }
 }
 
@@ -298,9 +389,11 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(
     model.properties = BuildBaseProperties(result, workPath);
     model.selection = selection;
     model.promptPreview = BuildPromptPreview(workPath, model.selection);
+    model.manualAiQueue = BuildManualAiQueueModel(workPath, model.selection);
     model.dirtyState = BuildCleanDirtyState();
     AddSelectionProperties(model.properties, workPath, model.selection);
     AddPromptPreviewProperties(model.properties, model.promptPreview);
+    AddManualAiQueueProperties(model.properties, model.manualAiQueue);
     AddDirtyStateProperties(model.properties, model.dirtyState);
 
     if (!result.status.ok) {

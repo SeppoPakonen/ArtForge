@@ -71,6 +71,17 @@ struct PromptPreviewModel {
     std::vector<std::string> diagnostics;
 };
 
+struct ManualAiQueueModel {
+    bool available{};
+    std::string queueRoot;
+    std::string requestFile;
+    std::string promptTextFile;
+    std::string expectedResultFile;
+    std::string status;
+    std::string copyPastePromptText;
+    std::vector<std::string> diagnostics;
+};
+
 struct DirtyStateModel {
     bool isDirty{};
     bool savePending{};

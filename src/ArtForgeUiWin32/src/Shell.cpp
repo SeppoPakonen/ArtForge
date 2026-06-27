@@ -8,11 +8,14 @@
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
 #include "ArtForge/Presentation/WorkAppPresentationAdapter.hpp"
+#include "ArtForge/Prompting/PromptPackage.hpp"
 #include "ArtForge/Services/EditCommandService.hpp"
+#include "ArtForge/Services/PromptCommandService.hpp"
 
 #include <commctrl.h>
 #include <shellapi.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -24,6 +27,7 @@ namespace {
 constexpr wchar_t ShellWindowClassName[] = L"ArtForge.ScopeShell.Window";
 constexpr int FileSaveCommand = 1000;
 constexpr int FileExitCommand = 1001;
+constexpr int FileQueueManualAiTaskCommand = 1002;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
 constexpr int NavigationTreeId = 2003;
@@ -499,6 +503,77 @@ void SetStatusText(ScopeShellState& state, std::wstring text)
     }
 }
 
+std::filesystem::path DefaultManualQueueRoot()
+{
+    char* userProfile = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&userProfile, &length, "USERPROFILE") == 0 && userProfile != nullptr) {
+        std::filesystem::path path{userProfile};
+        free(userProfile);
+        return path / "Documents" / "ArtForge" / "ai-queue";
+    }
+    return std::filesystem::path{"ArtForge"} / "ai-queue";
+}
+
+std::string DefaultTargetField(std::string_view domain, std::string_view itemType)
+{
+    if (domain == "lyrics" && itemType == "lyricLine") {
+        return "text";
+    }
+    if (domain == "visualArt" && itemType == "visualLayer") {
+        return "intent";
+    }
+    if (domain == "scriptStoryboard" && itemType == "scriptBlock") {
+        return "text";
+    }
+    return "content";
+}
+
+void HandleQueueManualAiTaskCommand(ScopeShellState& state)
+{
+    if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem || state.openedPath.empty()) {
+        SetStatusText(state, L"Manual AI queue is available for work files only.");
+        return;
+    }
+    if (!state.workSelection.hasSelection) {
+        SetStatusText(state, L"Select a work item row before queuing a manual AI task.");
+        return;
+    }
+
+    const std::filesystem::path workPath{state.openedPath};
+    const std::string operation = "manual-queue-selected-item";
+    const auto prompt = ArtForge::Services::BuildSelectedItemPromptCommand({
+        workPath,
+        state.workSelection.domain,
+        state.workSelection.itemType,
+        state.workSelection.itemId,
+        state.workSelection.itemIndex,
+        operation,
+    });
+
+    ArtForge::Prompting::AiExecutionRequest execution;
+    execution.providerKind = ArtForge::Prompting::AiProviderKind::ManualQueue;
+    execution.queueRoot = DefaultManualQueueRoot();
+    execution.promptPackagePath = workPath;
+    execution.promptPackageSummary = "Selected item prompt package";
+    execution.resultSchemaPath = "docs/prompting/ai-result-contract.md";
+    execution.requestedOperation = operation;
+    execution.target.workPath = workPath;
+    execution.target.domain = state.workSelection.domain;
+    execution.target.itemType = state.workSelection.itemType;
+    execution.target.itemId = state.workSelection.itemId;
+    execution.target.itemIndex = state.workSelection.itemIndex;
+    execution.target.field = DefaultTargetField(state.workSelection.domain, state.workSelection.itemType);
+
+    const auto result = ArtForge::Prompting::WriteManualAiQueueRequest({
+        execution,
+        prompt.promptDebugDump,
+    });
+    SetStatusText(state, result.ok ? L"Manual AI task queued." : L"Manual AI task queue failed.");
+    state.loadDetailText = Utf8ToWide(ArtForge::Prompting::DescribeManualAiQueueWriteResult(result));
+    PopulatePropertyPanel(state);
+}
+
 void HandleSaveCommand(ScopeShellState& state)
 {
     if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem) {
@@ -564,6 +639,7 @@ HMENU CreateShellMenu()
     const auto menu = CreateMenu();
     const auto fileMenu = CreatePopupMenu();
     AppendMenuW(fileMenu, MF_STRING, FileSaveCommand, L"Save");
+    AppendMenuW(fileMenu, MF_STRING, FileQueueManualAiTaskCommand, L"Queue Manual AI Task");
     AppendMenuW(fileMenu, MF_STRING, FileExitCommand, L"Exit");
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), L"File");
     return menu;
@@ -671,6 +747,10 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
     case WM_COMMAND:
         if (LOWORD(wParam) == FileSaveCommand) {
             HandleSaveCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            return 0;
+        }
+        if (LOWORD(wParam) == FileQueueManualAiTaskCommand) {
+            HandleQueueManualAiTaskCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
             return 0;
         }
         if (LOWORD(wParam) == FileExitCommand) {
