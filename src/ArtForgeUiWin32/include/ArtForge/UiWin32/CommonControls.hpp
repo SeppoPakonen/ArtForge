@@ -16,6 +16,7 @@ public:
     void AddColumn(int index, std::wstring_view title, int width);
     void AddRow(const std::vector<std::wstring_view>& cells);
     void ClearRows();
+    void Clear();
     void Move(const RECT& bounds);
 
 private:

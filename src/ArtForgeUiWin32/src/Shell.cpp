@@ -1,5 +1,6 @@
 #include "ArtForge/UiWin32/Shell.hpp"
 
+#include "ArtForge/UiWin32/CommandBar.hpp"
 #include "ArtForge/UiWin32/CommonControls.hpp"
 #include "ArtForge/UiWin32/PaneLayout.hpp"
 #include "ArtForge/UiWin32/PropertyPanel.hpp"
@@ -29,15 +30,21 @@ namespace ArtForge::UiWin32 {
 namespace {
 
 constexpr wchar_t ShellWindowClassName[] = L"ArtForge.ScopeShell.Window";
-constexpr int FileSaveCommand = 1000;
-constexpr int FileExitCommand = 1001;
-constexpr int FileQueueManualAiTaskCommand = 1002;
+constexpr int FileOpenCommand = 1000;
+constexpr int FileSaveCommand = 1001;
+constexpr int FileExitCommand = 1002;
+constexpr int FileQueueManualAiTaskCommand = 1003;
+constexpr int FileRefreshCommand = 1004;
+constexpr int FileBuildPromptCommand = 1005;
+constexpr int FileAcceptSuggestionCommand = 1006;
+constexpr int FileRejectSuggestionCommand = 1007;
 constexpr int ManualQueuePollTimerId = 3001;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
 constexpr int NavigationTreeId = 2003;
 constexpr int DetailTabId = 2004;
 constexpr int DetailListId = 2005;
+constexpr int CommandBarId = 2006;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
@@ -53,6 +60,7 @@ struct ScopeShellState {
     ArtForge::Presentation::SelectionModel workSelection;
     ArtForge::Presentation::DirtyStateModel dirtyState;
     std::optional<ArtForge::Prompting::AiExecutionRequest> activeManualAiRequest;
+    CommandBar commandBar;
     HWND statusBar{};
 };
 
@@ -536,6 +544,54 @@ std::string DefaultTargetField(std::string_view domain, std::string_view itemTyp
     return "content";
 }
 
+bool IsOpenedWorkFile(const ScopeShellState& state)
+{
+    return state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty();
+}
+
+ArtForge::Presentation::WorkAppPresentationModel CurrentWorkPresentation(const ScopeShellState& state)
+{
+    return ArtForge::Presentation::BuildWorkAppPresentationModel(
+        std::filesystem::path{state.openedPath},
+        state.workSelection);
+}
+
+std::vector<CommandBarButtonSpec> BuildCommandBarButtons(const ScopeShellState& state)
+{
+    bool canSave = false;
+    bool canBuildPrompt = false;
+    bool canQueueManualAiTask = false;
+    bool canAcceptSuggestion = false;
+    bool canRejectSuggestion = false;
+
+    if (IsOpenedWorkFile(state)) {
+        const auto presentation = CurrentWorkPresentation(state);
+        canSave = presentation.dirtyState.canSave;
+        canBuildPrompt = presentation.promptPreview.available;
+        canQueueManualAiTask = presentation.manualAiQueue.available;
+        canAcceptSuggestion = false;
+        canRejectSuggestion = false;
+    }
+
+    return {
+        {FileOpenCommand, L"Open", false},
+        {FileSaveCommand, L"Save", canSave || IsOpenedWorkFile(state)},
+        {FileRefreshCommand, L"Refresh", true},
+        {FileBuildPromptCommand, L"Build Prompt", canBuildPrompt},
+        {FileQueueManualAiTaskCommand, L"Queue Manual AI Task", canQueueManualAiTask},
+        {FileAcceptSuggestionCommand, L"Accept Suggestion", canAcceptSuggestion},
+        {FileRejectSuggestionCommand, L"Reject Suggestion", canRejectSuggestion},
+    };
+}
+
+void RefreshCommandBar(ScopeShellState& state)
+{
+    const auto buttons = BuildCommandBarButtons(state);
+    for (const auto& button : buttons) {
+        state.commandBar.SetButtonEnabled(button.commandId, button.enabled);
+    }
+}
+
 void HandleQueueManualAiTaskCommand(ScopeShellState& state)
 {
     if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem || state.openedPath.empty()) {
@@ -585,6 +641,7 @@ void HandleQueueManualAiTaskCommand(ScopeShellState& state)
     SetStatusText(state, result.ok ? L"Manual AI task queued." : L"Manual AI task queue failed.");
     state.loadDetailText = Utf8ToWide(ArtForge::Prompting::DescribeManualAiQueueWriteResult(result));
     PopulatePropertyPanel(state);
+    RefreshCommandBar(state);
 }
 
 void HandleManualQueuePollTimer(ScopeShellState& state, HWND window)
@@ -642,6 +699,58 @@ void HandleSaveCommand(ScopeShellState& state)
         result.dirtyState.pendingChangeCount,
         result.command.status.summary);
     PopulatePropertyPanel(state);
+    RefreshCommandBar(state);
+}
+
+void HandleRefreshCommand(ScopeShellState& state)
+{
+    UpdateFileStatus(state);
+    PopulateNavigationTree(state.navigationTree, state);
+    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
+        state.domainList.Clear();
+        PopulateWorkDomainList(state);
+    } else if (state.summaryControl != nullptr) {
+        const auto summary = SummaryText(state);
+        SetWindowTextW(state.summaryControl, summary.c_str());
+    }
+    PopulatePropertyPanel(state);
+    RefreshCommandBar(state);
+    SetStatusText(state, L"Shell refreshed.");
+}
+
+void HandleBuildPromptCommand(ScopeShellState& state)
+{
+    if (!IsOpenedWorkFile(state) || !state.workSelection.hasSelection) {
+        SetStatusText(state, L"Select a work item row before building a prompt.");
+        return;
+    }
+
+    const auto result = ArtForge::Services::BuildSelectedItemPromptCommand({
+        std::filesystem::path{state.openedPath},
+        state.workSelection.domain,
+        state.workSelection.itemType,
+        state.workSelection.itemId,
+        state.workSelection.itemIndex,
+        "toolbar-build-prompt",
+    });
+    state.loadDetailText = Utf8ToWide(result.command.debugSummary);
+    SetStatusText(state, Utf8ToWide(result.command.status.summary));
+    PopulatePropertyPanel(state);
+    RecordPresentationCommand(
+        state,
+        ArtForge::History::HistoryOperation::PromptPreviewRequested,
+        "toolbar-build-prompt",
+        result.command.status.ok ? "preview-ready" : "preview-failed");
+}
+
+void HandleOpenCommand(ScopeShellState& state)
+{
+    SetStatusText(state, L"Open command placeholder: launch with a scope file path for now.");
+}
+
+void HandleSuggestionCommandPlaceholder(ScopeShellState& state)
+{
+    SetStatusText(state, L"Suggestion toolbar command is disabled until pending suggestion routing is exposed.");
 }
 
 void HandleWorkDomainSelection(ScopeShellState& state, int rowIndex)
@@ -666,14 +775,20 @@ void HandleWorkDomainSelection(ScopeShellState& state, int rowIndex)
             "prompt-preview",
             "preview-ready");
     }
+    RefreshCommandBar(state);
 }
 
 HMENU CreateShellMenu()
 {
     const auto menu = CreateMenu();
     const auto fileMenu = CreatePopupMenu();
+    AppendMenuW(fileMenu, MF_STRING | MF_GRAYED, FileOpenCommand, L"Open");
     AppendMenuW(fileMenu, MF_STRING, FileSaveCommand, L"Save");
+    AppendMenuW(fileMenu, MF_STRING, FileRefreshCommand, L"Refresh");
+    AppendMenuW(fileMenu, MF_STRING, FileBuildPromptCommand, L"Build Prompt");
     AppendMenuW(fileMenu, MF_STRING, FileQueueManualAiTaskCommand, L"Queue Manual AI Task");
+    AppendMenuW(fileMenu, MF_STRING | MF_GRAYED, FileAcceptSuggestionCommand, L"Accept Suggestion");
+    AppendMenuW(fileMenu, MF_STRING | MF_GRAYED, FileRejectSuggestionCommand, L"Reject Suggestion");
     AppendMenuW(fileMenu, MF_STRING, FileExitCommand, L"Exit");
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(fileMenu), L"File");
     return menu;
@@ -697,8 +812,19 @@ void LayoutChildren(HWND window)
         statusHeight = statusRect.bottom - statusRect.top;
     }
 
+    RECT commandBarRect{
+        client.left,
+        client.top,
+        client.right,
+        client.top + state->metrics.toolbarHeight,
+    };
+    state->commandBar.Move(commandBarRect);
+
+    RECT contentRect = client;
+    contentRect.top += state->metrics.toolbarHeight;
+
     const auto rectangles = ArtForge::UiWin32::CalculateThreePaneLayout(
-        client,
+        contentRect,
         statusHeight,
         ArtForge::UiWin32::ToPaneLayoutMetrics(state->metrics));
     ArtForge::UiWin32::ApplyThreePaneLayout(
@@ -718,6 +844,9 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         const auto create = reinterpret_cast<CREATESTRUCTW*>(lParam);
         const auto state = reinterpret_cast<ScopeShellState*>(create->lpCreateParams);
         SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
+
+        state->commandBar.Create(window, CommandBarId, create->hInstance);
+        state->commandBar.SetButtons(BuildCommandBarButtons(*state), create->hInstance);
 
         state->navigationTree = CreateWindowExW(
             WS_EX_CLIENTEDGE,
@@ -791,12 +920,28 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         }
         break;
     case WM_COMMAND:
+        if (LOWORD(wParam) == FileOpenCommand) {
+            HandleOpenCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            return 0;
+        }
         if (LOWORD(wParam) == FileSaveCommand) {
             HandleSaveCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
             return 0;
         }
+        if (LOWORD(wParam) == FileRefreshCommand) {
+            HandleRefreshCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            return 0;
+        }
+        if (LOWORD(wParam) == FileBuildPromptCommand) {
+            HandleBuildPromptCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            return 0;
+        }
         if (LOWORD(wParam) == FileQueueManualAiTaskCommand) {
             HandleQueueManualAiTaskCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            return 0;
+        }
+        if (LOWORD(wParam) == FileAcceptSuggestionCommand || LOWORD(wParam) == FileRejectSuggestionCommand) {
+            HandleSuggestionCommandPlaceholder(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
             return 0;
         }
         if (LOWORD(wParam) == FileExitCommand) {

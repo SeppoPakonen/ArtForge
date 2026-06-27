@@ -14,6 +14,7 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClInclude Include="include\ArtForge\UiWin32\CommandBar.hpp" />
     <ClInclude Include="include\ArtForge\UiWin32\CommonControls.hpp" />
     <ClInclude Include="include\ArtForge\UiWin32\PaneLayout.hpp" />
     <ClInclude Include="include\ArtForge\UiWin32\PropertyPanel.hpp" />
@@ -21,6 +22,7 @@
     <ClInclude Include="include\ArtForge\UiWin32\UiMetrics.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\CommandBar.cpp" />
     <ClCompile Include="src\CommonControls.cpp" />
     <ClCompile Include="src\PaneLayout.cpp" />
     <ClCompile Include="src\PropertyPanel.cpp" />

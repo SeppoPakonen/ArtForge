@@ -79,6 +79,17 @@ void ListViewReport::ClearRows()
     }
 }
 
+void ListViewReport::Clear()
+{
+    if (window_ == nullptr) {
+        return;
+    }
+
+    ListView_DeleteAllItems(window_);
+    while (ListView_DeleteColumn(window_, 0) != FALSE) {
+    }
+}
+
 void ListViewReport::Move(const RECT& bounds)
 {
     if (window_ != nullptr) {
