@@ -431,3 +431,10 @@ FodyWeavers.xsd
 # ArtForge planning lives in the Manager repository and may be symlinked here.
 plan
 plan/
+
+# ArtForge local provider credentials/configuration. Do not commit API secrets.
+.artforge-local/
+.artforge-secrets/
+artforge.local.json
+artforge.providers.local.json
+*.secrets.json
