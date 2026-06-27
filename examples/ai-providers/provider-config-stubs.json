@@ -1,0 +1,27 @@
+{
+  "format": "artforge.aiProviderConfigurationStubs",
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "providerKind": "openai",
+      "displayName": "OpenAI",
+      "endpointProfile": "user-local-openai-profile",
+      "modelName": "model-placeholder",
+      "enabled": false
+    },
+    {
+      "providerKind": "anthropic",
+      "displayName": "Anthropic",
+      "endpointProfile": "user-local-anthropic-profile",
+      "modelName": "model-placeholder",
+      "enabled": false
+    },
+    {
+      "providerKind": "alibabaCloud",
+      "displayName": "Alibaba Cloud",
+      "endpointProfile": "user-local-alibaba-cloud-profile",
+      "modelName": "model-placeholder",
+      "enabled": false
+    }
+  ]
+}

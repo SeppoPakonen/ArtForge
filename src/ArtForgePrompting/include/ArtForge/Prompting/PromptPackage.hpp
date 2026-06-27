@@ -135,6 +135,14 @@ struct AiExecutionResult {
     std::vector<PendingSuggestion> pendingSuggestions;
 };
 
+struct AiProviderConfiguration {
+    AiProviderKind providerKind{AiProviderKind::Unknown};
+    std::string displayName;
+    std::string endpointProfile;
+    std::string modelName;
+    bool enabled{};
+};
+
 struct ManualAiQueueWriteRequest {
     AiExecutionRequest execution;
     std::string promptText;
@@ -231,6 +239,8 @@ AiResultValidationResult ValidateAiResultJsonText(std::string_view jsonText);
 std::string DescribeAiResultValidation(const AiResultValidationResult& result);
 std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggestion);
 std::string DescribeAiExecutionModel();
+std::vector<AiProviderConfiguration> DefaultAiProviderConfigurationStubs();
+std::string DescribeAiProviderConfigurationStubs(const std::vector<AiProviderConfiguration>& configurations);
 ManualAiQueueWriteResult WriteManualAiQueueRequest(const ManualAiQueueWriteRequest& request);
 std::string DescribeManualAiQueueWriteResult(const ManualAiQueueWriteResult& result);
 ManualAiQueuePollResult PollManualAiQueueResult(const ManualAiQueuePollRequest& request);

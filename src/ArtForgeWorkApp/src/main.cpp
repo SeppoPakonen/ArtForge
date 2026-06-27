@@ -91,6 +91,11 @@ bool IsPollManualAiQueueCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 8 && std::wstring_view{arguments[1]} == L"--poll-manual-ai-queue";
 }
 
+bool IsDescribeAiProviderConfigCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--describe-ai-provider-config";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -547,6 +552,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("Manual AI queue poll: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsDescribeAiProviderConfigCommand(argumentCount, arguments)) {
+        const auto result = ArtForge::Prompting::DescribeAiProviderConfigurationStubs(
+            ArtForge::Prompting::DefaultAiProviderConfigurationStubs());
+        WriteStdout(result);
+        LocalFree(arguments);
+        return 0;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

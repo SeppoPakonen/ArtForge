@@ -973,6 +973,30 @@ std::string DescribeAiExecutionModel()
     return output.str();
 }
 
+std::vector<AiProviderConfiguration> DefaultAiProviderConfigurationStubs()
+{
+    return {
+        {AiProviderKind::OpenAI, "OpenAI", "user-local-openai-profile", "model-placeholder", false},
+        {AiProviderKind::Anthropic, "Anthropic", "user-local-anthropic-profile", "model-placeholder", false},
+        {AiProviderKind::AlibabaCloud, "Alibaba Cloud", "user-local-alibaba-cloud-profile", "model-placeholder", false},
+    };
+}
+
+std::string DescribeAiProviderConfigurationStubs(const std::vector<AiProviderConfiguration>& configurations)
+{
+    std::ostringstream output;
+    output << "AI provider configuration stubs\n";
+    for (const auto& configuration : configurations) {
+        output << "- " << configuration.displayName << " provider=" << ToDisplayName(configuration.providerKind)
+               << " enabled=" << (configuration.enabled ? "yes" : "no")
+               << " endpointProfile=" << configuration.endpointProfile
+               << " model=" << configuration.modelName << "\n";
+        output << "  status: " << (configuration.enabled ? "configured placeholder" : "not configured") << "\n";
+    }
+    output << "Credential values are intentionally not part of provider configuration stubs.\n";
+    return output.str();
+}
+
 ManualAiQueueWriteResult WriteManualAiQueueRequest(const ManualAiQueueWriteRequest& request)
 {
     ManualAiQueueWriteResult result;
