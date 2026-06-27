@@ -925,6 +925,7 @@ std::string SerializePendingSuggestionJsonLine(const PendingSuggestion& suggesti
     output << "},";
     output << "\"proposed_text\":" << Quote(suggestion.proposedText) << ",";
     output << "\"rationale\":" << Quote(suggestion.rationale) << ",";
+    output << "\"rejection_reason\":" << Quote(suggestion.rejectionReason) << ",";
     output << "\"diagnostics\":[";
     for (std::size_t index = 0; index < suggestion.diagnostics.size(); ++index) {
         output << Quote(suggestion.diagnostics[index]);

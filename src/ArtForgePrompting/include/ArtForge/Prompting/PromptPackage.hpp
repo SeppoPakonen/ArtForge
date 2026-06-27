@@ -90,6 +90,7 @@ struct PendingSuggestion {
     PendingSuggestionTarget target;
     std::string proposedText;
     std::string rationale;
+    std::string rejectionReason;
     std::vector<std::string> diagnostics;
     PendingSuggestionStatus status{PendingSuggestionStatus::Pending};
 };

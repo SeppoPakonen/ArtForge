@@ -106,6 +106,11 @@ bool IsSmokeAcceptPendingSuggestionsCommand(int argumentCount, wchar_t** argumen
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-accept-pending-suggestions";
 }
 
+bool IsSmokeRejectPendingSuggestionsCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-reject-pending-suggestions";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -626,6 +631,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         LocalFree(arguments);
         return result.find("Accept pending suggestion: OK") != std::string::npos
             && result.find("current_text_changed") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeRejectPendingSuggestionsCommand(argumentCount, arguments)) {
+        const auto result = ArtForge::Services::DescribeRejectPendingSuggestionSmokeExamples();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Reject pending suggestion: OK") != std::string::npos
+            && result.find("Apply rejected suggestion: refused") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

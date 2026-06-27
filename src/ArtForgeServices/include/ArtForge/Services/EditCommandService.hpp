@@ -107,6 +107,17 @@ struct AcceptPendingSuggestionResult {
     SelectedTextEditCommandResult edit;
 };
 
+struct RejectPendingSuggestionRequest {
+    ArtForge::Prompting::PendingSuggestion suggestion;
+    std::string reason;
+    std::string actor;
+};
+
+struct RejectPendingSuggestionResult {
+    ServiceStatus status;
+    ArtForge::Prompting::PendingSuggestion suggestion;
+};
+
 EditCommand MakeReplaceTextCommand(
     std::string commandId,
     EditTarget target,
@@ -127,5 +138,8 @@ SelectedTextEditCommandResult ApplySelectedTextEditCommand(const SelectedTextEdi
 AcceptPendingSuggestionResult AcceptPendingSuggestionCommand(const AcceptPendingSuggestionRequest& request);
 std::string DescribeAcceptPendingSuggestionResult(const AcceptPendingSuggestionResult& result);
 std::string DescribeAcceptPendingSuggestionSmokeExamples();
+RejectPendingSuggestionResult RejectPendingSuggestionCommand(const RejectPendingSuggestionRequest& request);
+std::string DescribeRejectPendingSuggestionResult(const RejectPendingSuggestionResult& result);
+std::string DescribeRejectPendingSuggestionSmokeExamples();
 
 }

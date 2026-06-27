@@ -477,4 +477,75 @@ std::string DescribeAcceptPendingSuggestionSmokeExamples()
     return output.str();
 }
 
+RejectPendingSuggestionResult RejectPendingSuggestionCommand(const RejectPendingSuggestionRequest& request)
+{
+    RejectPendingSuggestionResult result;
+    result.suggestion = request.suggestion;
+    if (request.suggestion.status != ArtForge::Prompting::PendingSuggestionStatus::Pending) {
+        result.status = MakeErrorStatus("suggestion_not_pending", "Only pending suggestions can be rejected.");
+        return result;
+    }
+
+    result.suggestion.status = ArtForge::Prompting::PendingSuggestionStatus::Rejected;
+    result.suggestion.rejectionReason = request.reason;
+    if (!request.reason.empty()) {
+        result.suggestion.diagnostics.push_back("Rejection reason: " + request.reason);
+    }
+    result.status = MakeOkStatus("Pending suggestion rejected without modifying work content.");
+    return result;
+}
+
+std::string DescribeRejectPendingSuggestionResult(const RejectPendingSuggestionResult& result)
+{
+    std::ostringstream output;
+    output << "Reject pending suggestion: " << (result.status.ok ? "OK" : "failed") << "\n";
+    output << "Suggestion: " << result.suggestion.suggestionId << "\n";
+    output << "Status: " << ArtForge::Prompting::ToDisplayName(result.suggestion.status) << "\n";
+    output << "Summary: " << result.status.summary << "\n";
+    if (!result.suggestion.rejectionReason.empty()) {
+        output << "Reason: " << result.suggestion.rejectionReason << "\n";
+    }
+    for (const auto& diagnostic : result.status.diagnostics) {
+        output << "Diagnostic: " << diagnostic.code << " " << diagnostic.message << "\n";
+    }
+    return output.str();
+}
+
+std::string DescribeRejectPendingSuggestionSmokeExamples()
+{
+    const auto smokeRoot = std::filesystem::temp_directory_path() / "artforge-reject-suggestion-smoke";
+    std::filesystem::create_directories(smokeRoot);
+    const auto workPath = smokeRoot / "lyrics.afwork.json";
+    std::filesystem::copy_file("examples/work-domains/lyrics.afwork.json", workPath, std::filesystem::copy_options::overwrite_existing);
+
+    ArtForge::Prompting::PendingSuggestion suggestion;
+    suggestion.suggestionId = "suggestion.reject.smoke";
+    suggestion.target.workPath = workPath;
+    suggestion.target.domain = "lyrics";
+    suggestion.target.itemType = "lyricLine";
+    suggestion.target.itemId = "line.v1.001";
+    suggestion.target.itemIndex = 0;
+    suggestion.target.field = "text";
+    suggestion.proposedText = "Rejected text must not be written.";
+
+    const auto rejected = RejectPendingSuggestionCommand({suggestion, "Does not fit the current draft.", "codex"});
+    const auto applyRejected = AcceptPendingSuggestionCommand({
+        rejected.suggestion,
+        workPath,
+        "",
+        "I mark the door with a quiet name",
+        "codex",
+    });
+    const auto current = ReadCurrentText(workPath, "lyrics", "lyricLine", "line.v1.001").value_or("");
+
+    std::ostringstream output;
+    output << DescribeRejectPendingSuggestionResult(rejected);
+    output << "Apply rejected suggestion: " << (applyRejected.status.ok ? "unexpected OK" : "refused") << "\n";
+    for (const auto& diagnostic : applyRejected.status.diagnostics) {
+        output << "Apply diagnostic: " << diagnostic.code << " " << diagnostic.message << "\n";
+    }
+    output << "Work content after reject: " << current << "\n";
+    return output.str();
+}
+
 }
