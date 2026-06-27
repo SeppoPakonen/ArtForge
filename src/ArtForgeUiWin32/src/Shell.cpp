@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace ArtForge::UiWin32 {
@@ -28,6 +29,7 @@ constexpr wchar_t ShellWindowClassName[] = L"ArtForge.ScopeShell.Window";
 constexpr int FileSaveCommand = 1000;
 constexpr int FileExitCommand = 1001;
 constexpr int FileQueueManualAiTaskCommand = 1002;
+constexpr int ManualQueuePollTimerId = 3001;
 constexpr int StatusBarId = 2001;
 constexpr int SummaryControlId = 2002;
 constexpr int NavigationTreeId = 2003;
@@ -46,6 +48,7 @@ struct ScopeShellState {
     PropertyPanel propertyPanel;
     ArtForge::Presentation::SelectionModel workSelection;
     ArtForge::Presentation::DirtyStateModel dirtyState;
+    std::optional<ArtForge::Prompting::AiExecutionRequest> activeManualAiRequest;
     HWND statusBar{};
 };
 
@@ -569,9 +572,36 @@ void HandleQueueManualAiTaskCommand(ScopeShellState& state)
         execution,
         prompt.promptDebugDump,
     });
+    if (result.ok) {
+        state.activeManualAiRequest = result.execution;
+        if (state.summaryControl != nullptr) {
+            SetTimer(GetParent(state.summaryControl), ManualQueuePollTimerId, 1000, nullptr);
+        }
+    }
     SetStatusText(state, result.ok ? L"Manual AI task queued." : L"Manual AI task queue failed.");
     state.loadDetailText = Utf8ToWide(ArtForge::Prompting::DescribeManualAiQueueWriteResult(result));
     PopulatePropertyPanel(state);
+}
+
+void HandleManualQueuePollTimer(ScopeShellState& state, HWND window)
+{
+    if (!state.activeManualAiRequest) {
+        KillTimer(window, ManualQueuePollTimerId);
+        return;
+    }
+
+    const auto result = ArtForge::Prompting::PollManualAiQueueResult({
+        *state.activeManualAiRequest,
+        true,
+    });
+    state.loadDetailText = Utf8ToWide(ArtForge::Prompting::DescribeManualAiQueuePollResult(result));
+    SetStatusText(state, Utf8ToWide("Manual queue poll: " + std::string{ArtForge::Prompting::ToDisplayName(result.providerResult.status)}));
+    PopulatePropertyPanel(state);
+
+    if (result.providerResult.status != ArtForge::Prompting::AiExecutionStatus::WaitingForResult) {
+        state.activeManualAiRequest.reset();
+        KillTimer(window, ManualQueuePollTimerId);
+    }
 }
 
 void HandleSaveCommand(ScopeShellState& state)
@@ -744,6 +774,12 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
     case WM_SIZE:
         LayoutChildren(window);
         return 0;
+    case WM_TIMER:
+        if (wParam == ManualQueuePollTimerId) {
+            HandleManualQueuePollTimer(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)), window);
+            return 0;
+        }
+        break;
     case WM_COMMAND:
         if (LOWORD(wParam) == FileSaveCommand) {
             HandleSaveCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
