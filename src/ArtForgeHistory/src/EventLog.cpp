@@ -364,6 +364,29 @@ std::optional<SuggestionReviewHistoryMetadata> ReadSuggestionReviewMetadataField
     };
 }
 
+std::optional<ProviderExecutionHistoryMetadata> ReadProviderExecutionMetadataField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "provider_execution", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return ProviderExecutionHistoryMetadata{
+        ReadStringField(*objectJson, "provider_kind").value_or(""),
+        ReadStringField(*objectJson, "request_id").value_or(""),
+        ReadStringField(*objectJson, "prompt_package_path").value_or(""),
+        ReadStringField(*objectJson, "queue_request_path").value_or(""),
+        ReadStringField(*objectJson, "queue_result_path").value_or(""),
+        ReadStringField(*objectJson, "work_path").value_or(""),
+        ReadStringField(*objectJson, "domain").value_or(""),
+        ReadStringField(*objectJson, "item_type").value_or(""),
+        ReadStringField(*objectJson, "item_id").value_or(""),
+        ReadIntField(*objectJson, "item_index").value_or(0),
+        ReadStringField(*objectJson, "status").value_or(""),
+        ReadStringField(*objectJson, "diagnostic_summary").value_or(""),
+    };
+}
+
 std::optional<HistoryActor> ParseActor(std::string_view value)
 {
     if (value == "user") {
@@ -520,6 +543,7 @@ std::optional<StoredHistoryEvent> ParseHistoryEventLine(std::string_view line, s
     event.presentationCommand = ReadPresentationCommandMetadataField(line);
     event.changeSet = ReadChangeSetMetadataField(line);
     event.suggestionReview = ReadSuggestionReviewMetadataField(line);
+    event.providerExecution = ReadProviderExecutionMetadataField(line);
 
     const auto actor = ParseActor(ReadStringField(line, "actor").value_or(""));
     if (!actor) {
@@ -658,6 +682,24 @@ void AppendSuggestionReviewMetadata(std::ostringstream& output, const Suggestion
     output << "}";
 }
 
+void AppendProviderExecutionMetadata(std::ostringstream& output, const ProviderExecutionHistoryMetadata& metadata)
+{
+    output << ",\"provider_execution\":{";
+    output << "\"provider_kind\":" << Quote(metadata.providerKind) << ",";
+    output << "\"request_id\":" << Quote(metadata.requestId) << ",";
+    output << "\"prompt_package_path\":" << Quote(metadata.promptPackagePath) << ",";
+    output << "\"queue_request_path\":" << Quote(metadata.queueRequestPath) << ",";
+    output << "\"queue_result_path\":" << Quote(metadata.queueResultPath) << ",";
+    output << "\"work_path\":" << Quote(metadata.workPath) << ",";
+    output << "\"domain\":" << Quote(metadata.domain) << ",";
+    output << "\"item_type\":" << Quote(metadata.itemType) << ",";
+    output << "\"item_id\":" << Quote(metadata.itemId) << ",";
+    output << "\"item_index\":" << metadata.itemIndex << ",";
+    output << "\"status\":" << Quote(metadata.status) << ",";
+    output << "\"diagnostic_summary\":" << Quote(metadata.diagnosticSummary);
+    output << "}";
+}
+
 HistoryLogStatus WriteJsonLine(const std::filesystem::path& path, std::string_view jsonLine)
 {
     HistoryLogStatus status{true, {}};
@@ -747,6 +789,22 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "suggestion apply succeeded";
     case HistoryOperation::SuggestionApplyFailed:
         return "suggestion apply failed";
+    case HistoryOperation::ProviderExecutionRequested:
+        return "provider execution requested";
+    case HistoryOperation::ManualQueueRequestWritten:
+        return "manual queue request written";
+    case HistoryOperation::ManualQueueWaiting:
+        return "manual queue waiting";
+    case HistoryOperation::ManualQueueResultFound:
+        return "manual queue result found";
+    case HistoryOperation::ManualQueueResultImported:
+        return "manual queue result imported";
+    case HistoryOperation::ProviderNotConfigured:
+        return "provider not configured";
+    case HistoryOperation::ProviderNotImplemented:
+        return "provider not implemented";
+    case HistoryOperation::ProviderError:
+        return "provider error";
     case HistoryOperation::SnapshotCreated:
         return "snapshot created";
     case HistoryOperation::BranchCreated:
@@ -932,6 +990,9 @@ std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event)
     }
     if (event.suggestionReview) {
         AppendSuggestionReviewMetadata(output, *event.suggestionReview);
+    }
+    if (event.providerExecution) {
+        AppendProviderExecutionMetadata(output, *event.providerExecution);
     }
     output << "}";
     return output.str();
@@ -1315,6 +1376,95 @@ std::string SampleSuggestionReviewHistoryJsonLines()
         metadata.status = std::string{ToDisplayName(operation)};
         metadata.reasonOrDiagnostic = std::string{ToDisplayName(operation)} + " sample";
         output << SerializeHistoryEventJsonLine(CreateSuggestionReviewHistoryEvent(operation, metadata)) << "\n";
+    }
+    return output.str();
+}
+
+StoredHistoryEvent CreateProviderExecutionHistoryEvent(
+    HistoryOperation operation,
+    const ProviderExecutionHistoryMetadata& metadata)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    const auto operationName = ToDisplayName(operation);
+    const auto identity = metadata.providerKind + metadata.requestId + metadata.workPath + metadata.itemId + std::string{operationName};
+
+    StoredHistoryEvent event;
+    event.id = "hist.provider." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(identity));
+    event.timestamp = timestamp;
+    event.actor = HistoryActor::System;
+    event.scope = HistoryScope::Work;
+    event.operation = operation;
+    event.summary = metadata.diagnosticSummary.empty() ? std::string{operationName} : metadata.diagnosticSummary;
+    if (!metadata.workPath.empty()) {
+        event.affectedFiles.push_back(metadata.workPath);
+    }
+    if (!metadata.queueRequestPath.empty()) {
+        event.affectedFiles.push_back(metadata.queueRequestPath);
+    }
+    if (!metadata.queueResultPath.empty()) {
+        event.affectedFiles.push_back(metadata.queueResultPath);
+    }
+    event.promptPackageId = metadata.promptPackagePath;
+    event.aiResultId = metadata.queueResultPath;
+    event.providerExecution = metadata;
+    return event;
+}
+
+HistoryLogStatus RecordProviderExecutionHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const ProviderExecutionHistoryMetadata& metadata)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreateProviderExecutionHistoryEvent(operation, metadata));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
+}
+
+std::string SampleProviderExecutionHistoryJsonLines()
+{
+    const ProviderExecutionHistoryMetadata base{
+        "manualQueue",
+        "ai.request.sample.001",
+        "examples/prompt-selected-items/lyrics-line-repair.afprompt.json",
+        "manual-ai-queue/000001-lyrics-line-repair.request.json",
+        "manual-ai-queue/000001-lyrics-line-repair.result.json",
+        "examples/work-domains/lyrics.afwork.json",
+        "lyrics",
+        "lyricLine",
+        "line.v1.001",
+        0,
+        "queued",
+        "provider status sample",
+    };
+
+    std::ostringstream output;
+    for (const auto operation : {
+             HistoryOperation::ProviderExecutionRequested,
+             HistoryOperation::ManualQueueRequestWritten,
+             HistoryOperation::ManualQueueWaiting,
+             HistoryOperation::ManualQueueResultFound,
+             HistoryOperation::ManualQueueResultImported,
+             HistoryOperation::ProviderNotConfigured,
+             HistoryOperation::ProviderNotImplemented,
+             HistoryOperation::ProviderError,
+         }) {
+        auto metadata = base;
+        if (operation == HistoryOperation::ProviderNotConfigured) {
+            metadata.providerKind = "openai";
+        } else if (operation == HistoryOperation::ProviderNotImplemented) {
+            metadata.providerKind = "anthropic";
+        } else if (operation == HistoryOperation::ProviderError) {
+            metadata.providerKind = "alibabaCloud";
+        }
+        metadata.status = std::string{ToDisplayName(operation)};
+        metadata.diagnosticSummary = std::string{ToDisplayName(operation)} + " sample";
+        output << SerializeHistoryEventJsonLine(CreateProviderExecutionHistoryEvent(operation, metadata)) << "\n";
     }
     return output.str();
 }

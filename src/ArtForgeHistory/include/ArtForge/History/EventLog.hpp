@@ -38,6 +38,14 @@ enum class HistoryOperation {
     SuggestionApplyRequested,
     SuggestionApplySucceeded,
     SuggestionApplyFailed,
+    ProviderExecutionRequested,
+    ManualQueueRequestWritten,
+    ManualQueueWaiting,
+    ManualQueueResultFound,
+    ManualQueueResultImported,
+    ProviderNotConfigured,
+    ProviderNotImplemented,
+    ProviderError,
     SnapshotCreated,
     BranchCreated,
     FileOpenAttempted,
@@ -141,6 +149,21 @@ struct SuggestionReviewHistoryMetadata {
     std::string reasonOrDiagnostic;
 };
 
+struct ProviderExecutionHistoryMetadata {
+    std::string providerKind;
+    std::string requestId;
+    std::string promptPackagePath;
+    std::string queueRequestPath;
+    std::string queueResultPath;
+    std::string workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{};
+    std::string status;
+    std::string diagnosticSummary;
+};
+
 struct HistoryItemFields {
     std::string_view stableId;
     std::string_view timestamp;
@@ -194,6 +217,7 @@ struct StoredHistoryEvent {
     std::optional<PresentationCommandHistoryMetadata> presentationCommand;
     std::optional<ChangeSetHistoryMetadata> changeSet;
     std::optional<SuggestionReviewHistoryMetadata> suggestionReview;
+    std::optional<ProviderExecutionHistoryMetadata> providerExecution;
 };
 
 struct HistoryLogIssue {
@@ -292,13 +316,21 @@ UndoToLastSnapshotPlaceholderResult UndoToLastSnapshotPlaceholderCommand(
     const std::filesystem::path& scopeFilePath);
 std::string DescribeUndoToLastSnapshotPlaceholderResult(
     const UndoToLastSnapshotPlaceholderResult& result);
+StoredHistoryEvent CreateProviderExecutionHistoryEvent(
+    HistoryOperation operation,
+    const ProviderExecutionHistoryMetadata& metadata);
+HistoryLogStatus RecordProviderExecutionHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const ProviderExecutionHistoryMetadata& metadata);
+std::string SampleProviderExecutionHistoryJsonLines();
 
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 34> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 42> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -313,6 +345,14 @@ constexpr std::array<HistoryOperation, 34> ExampleHistoryOperations{{
     HistoryOperation::SuggestionApplyRequested,
     HistoryOperation::SuggestionApplySucceeded,
     HistoryOperation::SuggestionApplyFailed,
+    HistoryOperation::ProviderExecutionRequested,
+    HistoryOperation::ManualQueueRequestWritten,
+    HistoryOperation::ManualQueueWaiting,
+    HistoryOperation::ManualQueueResultFound,
+    HistoryOperation::ManualQueueResultImported,
+    HistoryOperation::ProviderNotConfigured,
+    HistoryOperation::ProviderNotImplemented,
+    HistoryOperation::ProviderError,
     HistoryOperation::SnapshotCreated,
     HistoryOperation::BranchCreated,
     HistoryOperation::FileOpenAttempted,

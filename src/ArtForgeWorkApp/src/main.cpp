@@ -132,6 +132,11 @@ bool IsSmokeUndoSnapshotPlaceholderCommand(int argumentCount, wchar_t** argument
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-undo-snapshot-placeholder";
 }
 
+bool IsSmokeProviderStatusHistoryCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-provider-status-history";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -660,6 +665,39 @@ std::string SmokeUndoSnapshotPlaceholder()
     return output.str();
 }
 
+std::string SmokeProviderStatusHistory()
+{
+    const auto path = std::filesystem::temp_directory_path() / "artforge-provider-status-history-smoke.afhistory.jsonl";
+    std::filesystem::remove(path);
+    const ArtForge::History::ProviderExecutionHistoryMetadata metadata{
+        "manualQueue",
+        "ai.request.history.smoke",
+        "examples/prompt-selected-items/lyrics-line-repair.afprompt.json",
+        "manual-ai-queue/request.json",
+        "manual-ai-queue/result.json",
+        "examples/work-domains/lyrics.afwork.json",
+        "lyrics",
+        "lyricLine",
+        "line.v1.001",
+        0,
+        "queued",
+        "provider status history smoke",
+    };
+    const auto append = ArtForge::History::AppendHistoryEventJsonLine(
+        path,
+        ArtForge::History::CreateProviderExecutionHistoryEvent(
+            ArtForge::History::HistoryOperation::ManualQueueRequestWritten,
+            metadata));
+    const auto read = ArtForge::History::ReadHistoryEventJsonLines(path);
+
+    std::ostringstream output;
+    output << "Provider status history append: " << (append.ok ? "OK" : "failed") << "\n";
+    output << "Provider status history read: " << (read.status.ok ? "OK" : "failed") << "\n";
+    output << "Events: " << read.events.size() << "\n";
+    output << "Sample provider lifecycle lines:\n" << ArtForge::History::SampleProviderExecutionHistoryJsonLines();
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -795,6 +833,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         LocalFree(arguments);
         return result.find("Status: noSnapshot") != std::string::npos
             && result.find("Status: snapshotFoundRestoreNotImplemented") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeProviderStatusHistoryCommand(argumentCount, arguments)) {
+        const auto result = SmokeProviderStatusHistory();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Provider status history append: OK") != std::string::npos
+            && result.find("Provider status history read: OK") != std::string::npos
+            && result.find("provider not configured") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);
