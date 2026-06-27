@@ -31,6 +31,13 @@ enum class HistoryOperation {
     RuleWeightChanged,
     PromptPackageGenerated,
     AiJsonResultImported,
+    SuggestionImported,
+    SuggestionReviewOpened,
+    SuggestionAccepted,
+    SuggestionRejected,
+    SuggestionApplyRequested,
+    SuggestionApplySucceeded,
+    SuggestionApplyFailed,
     SnapshotCreated,
     BranchCreated,
     FileOpenAttempted,
@@ -112,6 +119,20 @@ struct ChangeSetHistoryMetadata {
     std::string operationSummary;
 };
 
+struct SuggestionReviewHistoryMetadata {
+    std::string suggestionId;
+    std::string sourceRequestPath;
+    std::string sourceResultPath;
+    std::string workId;
+    std::string workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{};
+    std::string status;
+    std::string reasonOrDiagnostic;
+};
+
 struct HistoryItemFields {
     std::string_view stableId;
     std::string_view timestamp;
@@ -164,6 +185,7 @@ struct StoredHistoryEvent {
     std::optional<DomainItemHistoryMetadata> domainItem;
     std::optional<PresentationCommandHistoryMetadata> presentationCommand;
     std::optional<ChangeSetHistoryMetadata> changeSet;
+    std::optional<SuggestionReviewHistoryMetadata> suggestionReview;
 };
 
 struct HistoryLogIssue {
@@ -237,12 +259,21 @@ HistoryLogStatus RecordChangeSetHistoryEvent(
     HistoryOperation operation,
     const ChangeSetHistoryMetadata& metadata);
 
+StoredHistoryEvent CreateSuggestionReviewHistoryEvent(
+    HistoryOperation operation,
+    const SuggestionReviewHistoryMetadata& metadata);
+HistoryLogStatus RecordSuggestionReviewHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const SuggestionReviewHistoryMetadata& metadata);
+std::string SampleSuggestionReviewHistoryJsonLines();
+
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 27> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 34> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -250,6 +281,13 @@ constexpr std::array<HistoryOperation, 27> ExampleHistoryOperations{{
     HistoryOperation::RuleWeightChanged,
     HistoryOperation::PromptPackageGenerated,
     HistoryOperation::AiJsonResultImported,
+    HistoryOperation::SuggestionImported,
+    HistoryOperation::SuggestionReviewOpened,
+    HistoryOperation::SuggestionAccepted,
+    HistoryOperation::SuggestionRejected,
+    HistoryOperation::SuggestionApplyRequested,
+    HistoryOperation::SuggestionApplySucceeded,
+    HistoryOperation::SuggestionApplyFailed,
     HistoryOperation::SnapshotCreated,
     HistoryOperation::BranchCreated,
     HistoryOperation::FileOpenAttempted,

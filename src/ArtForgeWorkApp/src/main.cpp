@@ -111,6 +111,11 @@ bool IsSmokeRejectPendingSuggestionsCommand(int argumentCount, wchar_t** argumen
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-reject-pending-suggestions";
 }
 
+bool IsSmokeSuggestionReviewHistoryCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-suggestion-review-history";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -533,6 +538,39 @@ std::string DispatchAiProvider(int argumentCount, wchar_t** arguments)
     return ArtForge::Prompting::DescribeAiExecutionResult(result);
 }
 
+std::string SmokeSuggestionReviewHistory()
+{
+    const auto path = std::filesystem::temp_directory_path() / "artforge-suggestion-review-history-smoke.afhistory.jsonl";
+    std::filesystem::remove(path);
+
+    const ArtForge::History::SuggestionReviewHistoryMetadata metadata{
+        "suggestion.history.smoke",
+        "manual-ai-queue/request.json",
+        "manual-ai-queue/result.json",
+        "work.sample.lyrics",
+        "examples/work-domains/lyrics.afwork.json",
+        "lyrics",
+        "lyricLine",
+        "line.v1.001",
+        0,
+        "pending",
+        "suggestion history smoke",
+    };
+    const auto append = ArtForge::History::AppendHistoryEventJsonLine(
+        path,
+        ArtForge::History::CreateSuggestionReviewHistoryEvent(
+            ArtForge::History::HistoryOperation::SuggestionApplyRequested,
+            metadata));
+    const auto read = ArtForge::History::ReadHistoryEventJsonLines(path);
+
+    std::ostringstream output;
+    output << "Suggestion review history append: " << (append.ok ? "OK" : "failed") << "\n";
+    output << "Suggestion review history read: " << (read.status.ok ? "OK" : "failed") << "\n";
+    output << "Events: " << read.events.size() << "\n";
+    output << "Sample lifecycle lines:\n" << ArtForge::History::SampleSuggestionReviewHistoryJsonLines();
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -638,6 +676,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         LocalFree(arguments);
         return result.find("Reject pending suggestion: OK") != std::string::npos
             && result.find("Apply rejected suggestion: refused") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeSuggestionReviewHistoryCommand(argumentCount, arguments)) {
+        const auto result = SmokeSuggestionReviewHistory();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Suggestion review history append: OK") != std::string::npos
+            && result.find("Suggestion review history read: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

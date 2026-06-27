@@ -334,6 +334,28 @@ std::optional<ChangeSetHistoryMetadata> ReadChangeSetMetadataField(std::string_v
     };
 }
 
+std::optional<SuggestionReviewHistoryMetadata> ReadSuggestionReviewMetadataField(std::string_view json)
+{
+    const auto objectJson = ReadContainer(json, "suggestion_review", '{', '}');
+    if (!objectJson) {
+        return std::nullopt;
+    }
+
+    return SuggestionReviewHistoryMetadata{
+        ReadStringField(*objectJson, "suggestion_id").value_or(""),
+        ReadStringField(*objectJson, "source_request_path").value_or(""),
+        ReadStringField(*objectJson, "source_result_path").value_or(""),
+        ReadStringField(*objectJson, "work_id").value_or(""),
+        ReadStringField(*objectJson, "work_path").value_or(""),
+        ReadStringField(*objectJson, "domain").value_or(""),
+        ReadStringField(*objectJson, "item_type").value_or(""),
+        ReadStringField(*objectJson, "item_id").value_or(""),
+        ReadIntField(*objectJson, "item_index").value_or(0),
+        ReadStringField(*objectJson, "status").value_or(""),
+        ReadStringField(*objectJson, "reason_or_diagnostic").value_or(""),
+    };
+}
+
 std::optional<HistoryActor> ParseActor(std::string_view value)
 {
     if (value == "user") {
@@ -489,6 +511,7 @@ std::optional<StoredHistoryEvent> ParseHistoryEventLine(std::string_view line, s
     event.domainItem = ReadDomainItemMetadataField(line);
     event.presentationCommand = ReadPresentationCommandMetadataField(line);
     event.changeSet = ReadChangeSetMetadataField(line);
+    event.suggestionReview = ReadSuggestionReviewMetadataField(line);
 
     const auto actor = ParseActor(ReadStringField(line, "actor").value_or(""));
     if (!actor) {
@@ -596,6 +619,23 @@ void AppendChangeSetMetadata(std::ostringstream& output, const ChangeSetHistoryM
     output << "}";
 }
 
+void AppendSuggestionReviewMetadata(std::ostringstream& output, const SuggestionReviewHistoryMetadata& metadata)
+{
+    output << ",\"suggestion_review\":{";
+    output << "\"suggestion_id\":" << Quote(metadata.suggestionId) << ",";
+    output << "\"source_request_path\":" << Quote(metadata.sourceRequestPath) << ",";
+    output << "\"source_result_path\":" << Quote(metadata.sourceResultPath) << ",";
+    output << "\"work_id\":" << Quote(metadata.workId) << ",";
+    output << "\"work_path\":" << Quote(metadata.workPath) << ",";
+    output << "\"domain\":" << Quote(metadata.domain) << ",";
+    output << "\"item_type\":" << Quote(metadata.itemType) << ",";
+    output << "\"item_id\":" << Quote(metadata.itemId) << ",";
+    output << "\"item_index\":" << metadata.itemIndex << ",";
+    output << "\"status\":" << Quote(metadata.status) << ",";
+    output << "\"reason_or_diagnostic\":" << Quote(metadata.reasonOrDiagnostic);
+    output << "}";
+}
+
 HistoryLogStatus WriteJsonLine(const std::filesystem::path& path, std::string_view jsonLine)
 {
     HistoryLogStatus status{true, {}};
@@ -671,6 +711,20 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "prompt package generated";
     case HistoryOperation::AiJsonResultImported:
         return "AI JSON result imported";
+    case HistoryOperation::SuggestionImported:
+        return "suggestion imported";
+    case HistoryOperation::SuggestionReviewOpened:
+        return "suggestion review opened";
+    case HistoryOperation::SuggestionAccepted:
+        return "suggestion accepted";
+    case HistoryOperation::SuggestionRejected:
+        return "suggestion rejected";
+    case HistoryOperation::SuggestionApplyRequested:
+        return "suggestion apply requested";
+    case HistoryOperation::SuggestionApplySucceeded:
+        return "suggestion apply succeeded";
+    case HistoryOperation::SuggestionApplyFailed:
+        return "suggestion apply failed";
     case HistoryOperation::SnapshotCreated:
         return "snapshot created";
     case HistoryOperation::BranchCreated:
@@ -853,6 +907,9 @@ std::string SerializeHistoryEventJsonLine(const StoredHistoryEvent& event)
     }
     if (event.changeSet) {
         AppendChangeSetMetadata(output, *event.changeSet);
+    }
+    if (event.suggestionReview) {
+        AppendSuggestionReviewMetadata(output, *event.suggestionReview);
     }
     output << "}";
     return output.str();
@@ -1067,6 +1124,86 @@ HistoryLogStatus RecordChangeSetHistoryEvent(
     } catch (...) {
         return {false, {{0, "history recording failed"}}};
     }
+}
+
+StoredHistoryEvent CreateSuggestionReviewHistoryEvent(
+    HistoryOperation operation,
+    const SuggestionReviewHistoryMetadata& metadata)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    const auto operationName = ToDisplayName(operation);
+    const auto identity = metadata.suggestionId + metadata.workPath + metadata.domain + metadata.itemType + metadata.itemId + std::to_string(metadata.itemIndex) + std::string{operationName};
+
+    StoredHistoryEvent event;
+    event.id = "hist.suggestion." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(identity));
+    event.timestamp = timestamp;
+    event.actor = operation == HistoryOperation::SuggestionImported ? HistoryActor::Ai : HistoryActor::User;
+    event.scope = HistoryScope::Work;
+    event.operation = operation;
+    event.summary = metadata.reasonOrDiagnostic.empty() ? std::string{operationName} : metadata.reasonOrDiagnostic;
+    if (!metadata.workPath.empty()) {
+        event.affectedFiles = {metadata.workPath};
+    }
+    if (!metadata.sourceRequestPath.empty()) {
+        event.affectedFiles.push_back(metadata.sourceRequestPath);
+    }
+    if (!metadata.sourceResultPath.empty()) {
+        event.affectedFiles.push_back(metadata.sourceResultPath);
+    }
+    event.promptPackageId = metadata.sourceRequestPath;
+    event.aiResultId = metadata.sourceResultPath;
+    event.suggestionReview = metadata;
+    return event;
+}
+
+HistoryLogStatus RecordSuggestionReviewHistoryEvent(
+    const std::filesystem::path& scopeFilePath,
+    HistoryOperation operation,
+    const SuggestionReviewHistoryMetadata& metadata)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreateSuggestionReviewHistoryEvent(operation, metadata));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
+}
+
+std::string SampleSuggestionReviewHistoryJsonLines()
+{
+    const SuggestionReviewHistoryMetadata base{
+        "suggestion.sample.lyrics.001",
+        "manual-ai-queue/000001-lyrics-line-repair.request.json",
+        "manual-ai-queue/000001-lyrics-line-repair.result.json",
+        "work.sample.lyrics",
+        "examples/work-domains/lyrics.afwork.json",
+        "lyrics",
+        "lyricLine",
+        "line.v1.001",
+        0,
+        "pending",
+        "Imported lyric replacement as pending suggestion",
+    };
+
+    std::ostringstream output;
+    for (const auto operation : {
+             HistoryOperation::SuggestionImported,
+             HistoryOperation::SuggestionReviewOpened,
+             HistoryOperation::SuggestionAccepted,
+             HistoryOperation::SuggestionRejected,
+             HistoryOperation::SuggestionApplyRequested,
+             HistoryOperation::SuggestionApplySucceeded,
+             HistoryOperation::SuggestionApplyFailed,
+         }) {
+        auto metadata = base;
+        metadata.status = std::string{ToDisplayName(operation)};
+        metadata.reasonOrDiagnostic = std::string{ToDisplayName(operation)} + " sample";
+        output << SerializeHistoryEventJsonLine(CreateSuggestionReviewHistoryEvent(operation, metadata)) << "\n";
+    }
+    return output.str();
 }
 
 std::string_view CreateHistoryItemOperationName()
