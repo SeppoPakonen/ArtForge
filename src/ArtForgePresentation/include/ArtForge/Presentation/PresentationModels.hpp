@@ -96,6 +96,20 @@ struct PendingSuggestionReviewModel {
     CommandModel rejectCommand{"reject-suggestion", "Reject Suggestion", false};
 };
 
+struct SuggestionCompareModel {
+    std::string targetSummary;
+    std::string originalText;
+    std::string currentText;
+    std::string suggestedText;
+    bool originalAvailable{};
+    bool currentAvailable{};
+    bool suggestionAvailable{};
+    bool currentMatchesOriginal{};
+    bool currentDiffersFromOriginal{};
+    bool suggestionEqualsCurrent{};
+    std::vector<std::string> diagnostics;
+};
+
 struct DirtyStateModel {
     bool isDirty{};
     bool savePending{};
@@ -116,5 +130,11 @@ struct ClearSelectionRequest {
 
 std::string DescribeTableModel(const TableModel& model);
 std::string DescribePropertyListModel(const PropertyListModel& model);
+SuggestionCompareModel BuildSuggestionCompareModel(
+    std::string targetSummary,
+    std::string originalText,
+    std::string currentText,
+    std::string suggestedText);
+std::string DescribeSuggestionCompareModel(const SuggestionCompareModel& model);
 
 }

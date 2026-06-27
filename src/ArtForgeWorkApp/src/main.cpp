@@ -122,6 +122,11 @@ bool IsSmokeSuggestionReviewHistoryCommand(int argumentCount, wchar_t** argument
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-suggestion-review-history";
 }
 
+bool IsSmokeSuggestionCompareModelCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-suggestion-compare-model";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -586,6 +591,39 @@ std::string SmokeSuggestionReviewHistory()
     return output.str();
 }
 
+std::string SmokeSuggestionCompareModel()
+{
+    std::ostringstream output;
+    const auto lyric = ArtForge::Presentation::BuildSuggestionCompareModel(
+        "lyrics/lyricLine#line.v1.001",
+        "I mark the door with a quiet name",
+        "I mark the door with a quiet name",
+        "I keep the doorway lit tonight");
+    output << "Example: lyrics\n" << ArtForge::Presentation::DescribeSuggestionCompareModel(lyric) << "\n";
+
+    const auto visual = ArtForge::Presentation::BuildSuggestionCompareModel(
+        "visualArt/visualLayer#viewer.foreground",
+        "Readable silhouette and first focal point",
+        "Readable silhouette and first focal point",
+        "Lead the eye to the figure before the background.");
+    output << "Example: visualArt\n" << ArtForge::Presentation::DescribeSuggestionCompareModel(visual) << "\n";
+
+    const auto script = ArtForge::Presentation::BuildSuggestionCompareModel(
+        "scriptStoryboard/scriptBlock#block.opening.dialogue",
+        "We only get one clean version of this.",
+        "We only get one clean version of this.",
+        "We start before the room understands what changed.");
+    output << "Example: scriptStoryboard\n" << ArtForge::Presentation::DescribeSuggestionCompareModel(script) << "\n";
+
+    const auto changed = ArtForge::Presentation::BuildSuggestionCompareModel(
+        "lyrics/lyricLine#line.v1.001",
+        "old baseline",
+        "new current text",
+        "new current text");
+    output << "Example: changed current\n" << ArtForge::Presentation::DescribeSuggestionCompareModel(changed);
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -704,6 +742,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         LocalFree(arguments);
         return result.find("Suggestion review history append: OK") != std::string::npos
             && result.find("Suggestion review history read: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeSuggestionCompareModelCommand(argumentCount, arguments)) {
+        const auto result = SmokeSuggestionCompareModel();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Example: lyrics") != std::string::npos
+            && result.find("Example: visualArt") != std::string::npos
+            && result.find("Example: scriptStoryboard") != std::string::npos
+            && result.find("Current differs from original: yes") != std::string::npos
+            && result.find("Suggestion equals current: yes") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);
