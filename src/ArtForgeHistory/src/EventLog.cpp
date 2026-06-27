@@ -1240,6 +1240,51 @@ HistoryLogStatus RecordSuggestionApplySnapshotEvent(
     }
 }
 
+UndoToLastSnapshotPlaceholderResult UndoToLastSnapshotPlaceholderCommand(
+    const std::filesystem::path& scopeFilePath)
+{
+    UndoToLastSnapshotPlaceholderResult result;
+    const auto history = ReadHistoryEventJsonLines(DefaultOperationHistoryPath(scopeFilePath));
+    if (!history.status.ok) {
+        result.status = "noSnapshot";
+        result.diagnostic = history.status.issues.empty() ? "No readable history file." : history.status.issues.front().message;
+        return result;
+    }
+
+    for (auto iterator = history.events.rbegin(); iterator != history.events.rend(); ++iterator) {
+        if (iterator->operation == HistoryOperation::SnapshotCreated && iterator->snapshot) {
+            result.snapshotFound = true;
+            result.snapshotId = iterator->snapshot->snapshotId;
+            result.snapshotSummary = iterator->snapshot->summary;
+            result.status = "snapshotFoundRestoreNotImplemented";
+            result.diagnostic = "Snapshot metadata exists, but restoring work files to a snapshot is future work.";
+            return result;
+        }
+    }
+
+    result.status = "noSnapshot";
+    result.diagnostic = "No snapshot metadata event was found.";
+    return result;
+}
+
+std::string DescribeUndoToLastSnapshotPlaceholderResult(
+    const UndoToLastSnapshotPlaceholderResult& result)
+{
+    std::ostringstream output;
+    output << "Undo to last snapshot: not implemented\n";
+    output << "Status: " << result.status << "\n";
+    output << "Snapshot found: " << (result.snapshotFound ? "yes" : "no") << "\n";
+    if (!result.snapshotId.empty()) {
+        output << "Snapshot id: " << result.snapshotId << "\n";
+    }
+    if (!result.snapshotSummary.empty()) {
+        output << "Snapshot summary: " << result.snapshotSummary << "\n";
+    }
+    output << "Restoration implemented: " << (result.restoreImplemented ? "yes" : "no") << "\n";
+    output << "Diagnostic: " << result.diagnostic << "\n";
+    return output.str();
+}
+
 std::string SampleSuggestionReviewHistoryJsonLines()
 {
     const SuggestionReviewHistoryMetadata base{

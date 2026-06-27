@@ -211,6 +211,15 @@ struct HistoryLogReadResult {
     std::vector<StoredHistoryEvent> events;
 };
 
+struct UndoToLastSnapshotPlaceholderResult {
+    bool snapshotFound{};
+    bool restoreImplemented{};
+    std::string status;
+    std::string snapshotId;
+    std::string snapshotSummary;
+    std::string diagnostic;
+};
+
 std::string_view PersistentEventLogName();
 std::string_view ToDisplayName(HistoryActor actor);
 std::string_view ToDisplayName(HistoryScope scope);
@@ -279,6 +288,10 @@ StoredHistoryEvent CreateSuggestionApplySnapshotEvent(const SuggestionReviewHist
 HistoryLogStatus RecordSuggestionApplySnapshotEvent(
     const std::filesystem::path& scopeFilePath,
     const SuggestionReviewHistoryMetadata& metadata);
+UndoToLastSnapshotPlaceholderResult UndoToLastSnapshotPlaceholderCommand(
+    const std::filesystem::path& scopeFilePath);
+std::string DescribeUndoToLastSnapshotPlaceholderResult(
+    const UndoToLastSnapshotPlaceholderResult& result);
 
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();

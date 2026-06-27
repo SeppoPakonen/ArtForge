@@ -127,6 +127,11 @@ bool IsSmokeSuggestionCompareModelCommand(int argumentCount, wchar_t** arguments
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-suggestion-compare-model";
 }
 
+bool IsSmokeUndoSnapshotPlaceholderCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-undo-snapshot-placeholder";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -624,6 +629,37 @@ std::string SmokeSuggestionCompareModel()
     return output.str();
 }
 
+std::string SmokeUndoSnapshotPlaceholder()
+{
+    const auto root = std::filesystem::temp_directory_path() / "artforge-undo-snapshot-smoke";
+    std::filesystem::create_directories(root);
+    const auto workPath = root / "work.afwork.json";
+    std::filesystem::copy_file("examples/work-domains/lyrics.afwork.json", workPath, std::filesystem::copy_options::overwrite_existing);
+    std::filesystem::remove(root / "operations.afhistory.jsonl");
+
+    std::ostringstream output;
+    const auto none = ArtForge::History::UndoToLastSnapshotPlaceholderCommand(workPath);
+    output << "Example: no snapshot\n" << ArtForge::History::DescribeUndoToLastSnapshotPlaceholderResult(none) << "\n";
+
+    const ArtForge::History::SuggestionReviewHistoryMetadata metadata{
+        "suggestion.undo.smoke",
+        "",
+        "",
+        "work.sample.lyrics",
+        workPath.generic_string(),
+        "lyrics",
+        "lyricLine",
+        "line.v1.001",
+        0,
+        "accepted",
+        "before suggestion apply",
+    };
+    (void)ArtForge::History::RecordSuggestionApplySnapshotEvent(workPath, metadata);
+    const auto found = ArtForge::History::UndoToLastSnapshotPlaceholderCommand(workPath);
+    output << "Example: snapshot found\n" << ArtForge::History::DescribeUndoToLastSnapshotPlaceholderResult(found);
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -752,6 +788,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
             && result.find("Example: scriptStoryboard") != std::string::npos
             && result.find("Current differs from original: yes") != std::string::npos
             && result.find("Suggestion equals current: yes") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeUndoSnapshotPlaceholderCommand(argumentCount, arguments)) {
+        const auto result = SmokeUndoSnapshotPlaceholder();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Status: noSnapshot") != std::string::npos
+            && result.find("Status: snapshotFoundRestoreNotImplemented") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);
