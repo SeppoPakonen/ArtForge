@@ -162,6 +162,11 @@ bool IsSmokeProviderStatusHistoryCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-provider-status-history";
 }
 
+bool IsSmokeApiProviderCallHistoryCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-api-provider-call-history";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -845,6 +850,56 @@ std::string SmokeProviderStatusHistory()
     return output.str();
 }
 
+std::string SmokeApiProviderCallHistory()
+{
+    const auto path = std::filesystem::temp_directory_path() / "artforge-api-provider-call-history-smoke.afhistory.jsonl";
+    std::filesystem::remove(path);
+    const ArtForge::History::ProviderExecutionHistoryMetadata metadata{
+        "openai",
+        "openai.call.history.smoke",
+        "examples/prompt-selected-items/lyrics-line-repair.afprompt.json",
+        "",
+        "",
+        "examples/work-domains/lyrics.afwork.json",
+        "lyrics",
+        "lyricLine",
+        "line.v1.001",
+        0,
+        "resultFound",
+        "safe API provider call history smoke",
+        "gpt-placeholder",
+        123,
+        "stage=artforgeContract",
+    };
+
+    bool appendOk = true;
+    for (const auto operation : {
+             ArtForge::History::HistoryOperation::ProviderCallRequested,
+             ArtForge::History::HistoryOperation::ProviderCallStarted,
+             ArtForge::History::HistoryOperation::ProviderCallSucceeded,
+             ArtForge::History::HistoryOperation::ProviderResultValidated,
+             ArtForge::History::HistoryOperation::ProviderCallFailed,
+             ArtForge::History::HistoryOperation::ProviderResultRejected,
+         }) {
+        const auto append = ArtForge::History::AppendHistoryEventJsonLine(
+            path,
+            ArtForge::History::CreateProviderExecutionHistoryEvent(operation, metadata));
+        appendOk = appendOk && append.ok;
+    }
+    const auto read = ArtForge::History::ReadHistoryEventJsonLines(path);
+    const auto sampleRead = ArtForge::History::ReadHistoryEventJsonLines("examples/history/api-provider-call-lifecycle.afhistory.jsonl");
+
+    std::ostringstream output;
+    output << "API provider call history append: " << (appendOk ? "OK" : "failed") << "\n";
+    output << "API provider call history read: " << (read.status.ok ? "OK" : "failed") << "\n";
+    output << "Events: " << read.events.size() << "\n";
+    output << "Sample file read: " << (sampleRead.status.ok ? "OK" : "failed") << "\n";
+    output << "Sample file events: " << sampleRead.events.size() << "\n";
+    output << "Sample API provider lifecycle lines:\n" << ArtForge::History::SampleProviderExecutionHistoryJsonLines();
+    output << "Secret-bearing fields intentionally absent: authorization, credential values, raw prompt, raw response\n";
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -1039,6 +1094,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         return result.find("Provider status history append: OK") != std::string::npos
             && result.find("Provider status history read: OK") != std::string::npos
             && result.find("provider not configured") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeApiProviderCallHistoryCommand(argumentCount, arguments)) {
+        const auto result = SmokeApiProviderCallHistory();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("API provider call history append: OK") != std::string::npos
+            && result.find("API provider call history read: OK") != std::string::npos
+            && result.find("Events: 6") != std::string::npos
+            && result.find("Sample file read: OK") != std::string::npos
+            && result.find("Sample file events: 6") != std::string::npos
+            && result.find("provider call requested") != std::string::npos
+            && result.find("provider result rejected") != std::string::npos
+            && result.find("authorization") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

@@ -384,6 +384,9 @@ std::optional<ProviderExecutionHistoryMetadata> ReadProviderExecutionMetadataFie
         ReadIntField(*objectJson, "item_index").value_or(0),
         ReadStringField(*objectJson, "status").value_or(""),
         ReadStringField(*objectJson, "diagnostic_summary").value_or(""),
+        ReadStringField(*objectJson, "model_name").value_or(""),
+        ReadIntField(*objectJson, "duration_ms").value_or(0),
+        ReadStringField(*objectJson, "diagnostic_code").value_or(""),
     };
 }
 
@@ -696,7 +699,10 @@ void AppendProviderExecutionMetadata(std::ostringstream& output, const ProviderE
     output << "\"item_id\":" << Quote(metadata.itemId) << ",";
     output << "\"item_index\":" << metadata.itemIndex << ",";
     output << "\"status\":" << Quote(metadata.status) << ",";
-    output << "\"diagnostic_summary\":" << Quote(metadata.diagnosticSummary);
+    output << "\"diagnostic_summary\":" << Quote(metadata.diagnosticSummary) << ",";
+    output << "\"model_name\":" << Quote(metadata.modelName) << ",";
+    output << "\"duration_ms\":" << metadata.durationMilliseconds << ",";
+    output << "\"diagnostic_code\":" << Quote(metadata.diagnosticCode);
     output << "}";
 }
 
@@ -805,6 +811,18 @@ std::string_view ToDisplayName(HistoryOperation operation)
         return "provider not implemented";
     case HistoryOperation::ProviderError:
         return "provider error";
+    case HistoryOperation::ProviderCallRequested:
+        return "provider call requested";
+    case HistoryOperation::ProviderCallStarted:
+        return "provider call started";
+    case HistoryOperation::ProviderCallSucceeded:
+        return "provider call succeeded";
+    case HistoryOperation::ProviderCallFailed:
+        return "provider call failed";
+    case HistoryOperation::ProviderResultValidated:
+        return "provider result validated";
+    case HistoryOperation::ProviderResultRejected:
+        return "provider result rejected";
     case HistoryOperation::SnapshotCreated:
         return "snapshot created";
     case HistoryOperation::BranchCreated:
@@ -1386,7 +1404,7 @@ StoredHistoryEvent CreateProviderExecutionHistoryEvent(
 {
     const auto timestamp = CurrentUtcTimestamp();
     const auto operationName = ToDisplayName(operation);
-    const auto identity = metadata.providerKind + metadata.requestId + metadata.workPath + metadata.itemId + std::string{operationName};
+    const auto identity = metadata.providerKind + metadata.requestId + metadata.workPath + metadata.itemId + metadata.modelName + std::string{operationName};
 
     StoredHistoryEvent event;
     event.id = "hist.provider." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(identity));
@@ -1453,6 +1471,12 @@ std::string SampleProviderExecutionHistoryJsonLines()
              HistoryOperation::ProviderNotConfigured,
              HistoryOperation::ProviderNotImplemented,
              HistoryOperation::ProviderError,
+             HistoryOperation::ProviderCallRequested,
+             HistoryOperation::ProviderCallStarted,
+             HistoryOperation::ProviderCallSucceeded,
+             HistoryOperation::ProviderCallFailed,
+             HistoryOperation::ProviderResultValidated,
+             HistoryOperation::ProviderResultRejected,
          }) {
         auto metadata = base;
         if (operation == HistoryOperation::ProviderNotConfigured) {
@@ -1461,6 +1485,18 @@ std::string SampleProviderExecutionHistoryJsonLines()
             metadata.providerKind = "anthropic";
         } else if (operation == HistoryOperation::ProviderError) {
             metadata.providerKind = "alibabaCloud";
+        } else if (operation == HistoryOperation::ProviderCallRequested
+            || operation == HistoryOperation::ProviderCallStarted
+            || operation == HistoryOperation::ProviderCallSucceeded
+            || operation == HistoryOperation::ProviderCallFailed
+            || operation == HistoryOperation::ProviderResultValidated
+            || operation == HistoryOperation::ProviderResultRejected) {
+            metadata.providerKind = "openai";
+            metadata.queueRequestPath = "";
+            metadata.queueResultPath = "";
+            metadata.modelName = "gpt-placeholder";
+            metadata.durationMilliseconds = operation == HistoryOperation::ProviderCallSucceeded ? 420 : 0;
+            metadata.diagnosticCode = operation == HistoryOperation::ProviderCallFailed ? "http_status" : "";
         }
         metadata.status = std::string{ToDisplayName(operation)};
         metadata.diagnosticSummary = std::string{ToDisplayName(operation)} + " sample";

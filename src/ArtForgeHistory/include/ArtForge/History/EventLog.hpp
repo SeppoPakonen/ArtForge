@@ -46,6 +46,12 @@ enum class HistoryOperation {
     ProviderNotConfigured,
     ProviderNotImplemented,
     ProviderError,
+    ProviderCallRequested,
+    ProviderCallStarted,
+    ProviderCallSucceeded,
+    ProviderCallFailed,
+    ProviderResultValidated,
+    ProviderResultRejected,
     SnapshotCreated,
     BranchCreated,
     FileOpenAttempted,
@@ -162,6 +168,9 @@ struct ProviderExecutionHistoryMetadata {
     int itemIndex{};
     std::string status;
     std::string diagnosticSummary;
+    std::string modelName;
+    int durationMilliseconds{};
+    std::string diagnosticCode;
 };
 
 struct HistoryItemFields {
@@ -330,7 +339,7 @@ std::string_view ListHistoryItemsOperationName();
 std::string_view RestoreSnapshotPlaceholderName();
 std::string_view BranchMetadataPlaceholderName();
 
-constexpr std::array<HistoryOperation, 42> ExampleHistoryOperations{{
+constexpr std::array<HistoryOperation, 48> ExampleHistoryOperations{{
     HistoryOperation::UserTextEdit,
     HistoryOperation::AcceptedAiRepairOption,
     HistoryOperation::RejectedAiSuggestion,
@@ -353,6 +362,12 @@ constexpr std::array<HistoryOperation, 42> ExampleHistoryOperations{{
     HistoryOperation::ProviderNotConfigured,
     HistoryOperation::ProviderNotImplemented,
     HistoryOperation::ProviderError,
+    HistoryOperation::ProviderCallRequested,
+    HistoryOperation::ProviderCallStarted,
+    HistoryOperation::ProviderCallSucceeded,
+    HistoryOperation::ProviderCallFailed,
+    HistoryOperation::ProviderResultValidated,
+    HistoryOperation::ProviderResultRejected,
     HistoryOperation::SnapshotCreated,
     HistoryOperation::BranchCreated,
     HistoryOperation::FileOpenAttempted,
