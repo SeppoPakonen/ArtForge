@@ -112,6 +112,16 @@ bool IsSmokeOpenAiMappingCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-openai-mapping";
 }
 
+bool IsSmokeOpenAiDispatchCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-openai-dispatch";
+}
+
+bool IsDispatchOpenAiLiveCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--dispatch-openai-live";
+}
+
 bool IsDispatchAiProviderCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--dispatch-ai-provider";
@@ -418,6 +428,79 @@ std::string SmokeOpenAiMapping()
     output << "Fixture load: " << (input ? "OK" : "failed") << "\n";
     output << ArtForge::Prompting::DescribeOpenAiMappingSmokeExamples(buffer.str());
     return output.str();
+}
+
+ArtForge::Prompting::AiExecutionRequest BuildOpenAiSmokeExecution()
+{
+    ArtForge::Prompting::AiExecutionRequest execution;
+    execution.requestId = "openai-dispatch-smoke-001";
+    execution.providerKind = ArtForge::Prompting::AiProviderKind::OpenAI;
+    execution.promptPackagePath = "examples/prompt-selected-items/lyrics-line-repair.afprompt.json";
+    execution.promptPackageSummary = "Selected item prompt package";
+    execution.resultSchemaPath = "docs/prompting/ai-result-contract.md";
+    execution.requestedOperation = "line-repair";
+    execution.target.workPath = "examples/work-domains/lyrics.afwork.json";
+    execution.target.domain = "lyrics";
+    execution.target.itemType = "lyricLine";
+    execution.target.itemId = "line.v1.001";
+    execution.target.itemIndex = 0;
+    execution.target.field = "text";
+    return execution;
+}
+
+std::string ReadTextFile(const std::filesystem::path& path)
+{
+    std::ifstream input{path, std::ios::binary};
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    return buffer.str();
+}
+
+std::string SmokeOpenAiDispatch()
+{
+    const auto execution = BuildOpenAiSmokeExecution();
+    const auto promptText = "# ArtForge prompt package\n\nReturn JSON for the selected lyric line.";
+    const auto fixture = ReadTextFile("examples/ai-providers/openai-response-lyrics-line-repair.json");
+    const ArtForge::Prompting::AiProviderDispatchRequest missingConfig{
+        execution,
+        promptText,
+        ArtForge::Prompting::DefaultAiProviderConfigurationStubs(),
+    };
+    const ArtForge::Prompting::AiProviderDispatchRequest enabledConfig{
+        execution,
+        promptText,
+        {
+            {ArtForge::Prompting::AiProviderKind::OpenAI, "OpenAI", "responses", "gpt-placeholder", true},
+        },
+    };
+
+    const auto missing = ArtForge::Prompting::DispatchAiExecutionRequestOptionalNetwork(missingConfig);
+    const auto success = ArtForge::Prompting::DispatchAiExecutionRequestWithFakeHttpResponse(
+        enabledConfig,
+        ArtForge::Prompting::FakeHttpJsonPostResponse(200, fixture));
+    const auto failure = ArtForge::Prompting::DispatchAiExecutionRequestWithFakeHttpResponse(
+        enabledConfig,
+        ArtForge::Prompting::FakeHttpJsonPostResponse(503, "{\"error\":{\"message\":\"fake unavailable\"}}"));
+
+    std::ostringstream output;
+    output << "OpenAI dispatch smoke\n";
+    output << "Missing configuration\n" << ArtForge::Prompting::DescribeAiExecutionResult(missing) << "\n";
+    output << "Fake transport success\n" << ArtForge::Prompting::DescribeAiExecutionResult(success) << "\n";
+    output << "Fake transport failure\n" << ArtForge::Prompting::DescribeAiExecutionResult(failure);
+    return output.str();
+}
+
+std::string DispatchOpenAiLive()
+{
+    const ArtForge::Prompting::AiProviderDispatchRequest request{
+        BuildOpenAiSmokeExecution(),
+        "# ArtForge prompt package\n\nReturn JSON for the selected lyric line.",
+        {
+            {ArtForge::Prompting::AiProviderKind::OpenAI, "OpenAI", "responses", "gpt-placeholder", true},
+        },
+    };
+    return ArtForge::Prompting::DescribeAiExecutionResult(
+        ArtForge::Prompting::DispatchAiExecutionRequestOptionalNetwork(request));
 }
 
 std::string ImportAiResultPending(wchar_t** arguments)
@@ -828,6 +911,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         return result.find("Fixture load: OK") != std::string::npos
             && result.find("OpenAI response mapping: OK") != std::string::npos
             && result.find("AI provider dispatch: resultFound") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeOpenAiDispatchCommand(argumentCount, arguments)) {
+        const auto result = SmokeOpenAiDispatch();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Missing configuration") != std::string::npos
+            && result.find("AI provider dispatch: notConfigured") != std::string::npos
+            && result.find("Fake transport success") != std::string::npos
+            && result.find("AI provider dispatch: resultFound") != std::string::npos
+            && result.find("Fake transport failure") != std::string::npos
+            && result.find("AI provider dispatch: failed") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsDispatchOpenAiLiveCommand(argumentCount, arguments)) {
+        const auto result = DispatchOpenAiLive();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("AI provider dispatch: resultFound") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr && IsDispatchAiProviderCommand(argumentCount, arguments)) {
         const auto result = DispatchAiProvider(argumentCount, arguments);

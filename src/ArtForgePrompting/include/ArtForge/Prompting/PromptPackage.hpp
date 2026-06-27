@@ -289,6 +289,10 @@ std::string DescribeManualAiQueueWriteResult(const ManualAiQueueWriteResult& res
 ManualAiQueuePollResult PollManualAiQueueResult(const ManualAiQueuePollRequest& request);
 std::string DescribeManualAiQueuePollResult(const ManualAiQueuePollResult& result);
 AiExecutionResult DispatchAiExecutionRequestNoNetwork(const AiProviderDispatchRequest& request);
+AiExecutionResult DispatchAiExecutionRequestOptionalNetwork(const AiProviderDispatchRequest& request);
+AiExecutionResult DispatchAiExecutionRequestWithFakeHttpResponse(
+    const AiProviderDispatchRequest& request,
+    const HttpJsonPostResponse& fakeResponse);
 std::string DescribeAiExecutionResult(const AiExecutionResult& result);
 HttpJsonPostResponse PostJsonWithWinHttp(const HttpJsonPostRequest& request);
 HttpJsonPostResponse FakeHttpJsonPostResponse(int statusCode, std::string body);

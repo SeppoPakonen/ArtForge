@@ -12,6 +12,7 @@
 #include <winhttp.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <optional>
@@ -537,6 +538,19 @@ std::string ExtractFirstJsonObject(std::string_view text)
         }
     }
     return {};
+}
+
+std::string ReadEnvironmentVariable(std::string_view name)
+{
+    std::string result;
+    char* value = nullptr;
+    std::size_t size = 0;
+    const auto variable = std::string{name};
+    if (_dupenv_s(&value, &size, variable.c_str()) == 0 && value != nullptr) {
+        result.assign(value, size > 0 ? size - 1 : 0);
+        std::free(value);
+    }
+    return result;
 }
 
 int NextManualQueueSequence(const std::filesystem::path& queueRoot)
@@ -1594,6 +1608,132 @@ std::string DescribeOpenAiMappingSmokeExamples(std::string_view responseJson)
     return output.str();
 }
 
+std::optional<AiProviderConfiguration> FindProviderConfiguration(
+    const std::vector<AiProviderConfiguration>& configurations,
+    AiProviderKind providerKind)
+{
+    const auto found = std::find_if(
+        configurations.begin(),
+        configurations.end(),
+        [&](const AiProviderConfiguration& configuration) {
+            return configuration.providerKind == providerKind;
+        });
+    if (found == configurations.end()) {
+        return std::nullopt;
+    }
+    return *found;
+}
+
+std::string OpenAiResponsesEndpointUrl(const AiProviderConfiguration& configuration)
+{
+    if (configuration.endpointProfile.rfind("https://", 0) == 0
+        || configuration.endpointProfile.rfind("http://", 0) == 0) {
+        return configuration.endpointProfile;
+    }
+    if (configuration.endpointProfile.empty()) {
+        return {};
+    }
+    return "https://api.openai.com/v1/responses";
+}
+
+AiExecutionResult NotConfiguredOpenAiResult(
+    const AiExecutionRequest& execution,
+    std::string message)
+{
+    AiExecutionResult result;
+    result.requestId = execution.requestId;
+    result.providerKind = AiProviderKind::OpenAI;
+    result.locations = execution.locations;
+    result.status = AiExecutionStatus::NotConfigured;
+    result.errors.push_back({"not-configured", std::move(message)});
+    return result;
+}
+
+HttpJsonPostRequest BuildOpenAiHttpJsonPostRequest(
+    const AiProviderDispatchRequest& request,
+    const AiProviderConfiguration& configuration,
+    std::string_view apiKey)
+{
+    const auto requestJson = BuildOpenAiResponsesRequestJson({
+        request.execution,
+        configuration,
+        request.promptText,
+        "{\"type\":\"object\",\"additionalProperties\":true}",
+    });
+
+    return {
+        OpenAiResponsesEndpointUrl(configuration),
+        {
+            {"Authorization", "Bearer " + std::string{apiKey}},
+            {"OpenAI-Beta", "responses=v1"},
+        },
+        requestJson,
+        30000,
+    };
+}
+
+AiExecutionResult DispatchOpenAiProviderWithResponse(
+    const AiProviderDispatchRequest& request,
+    const AiProviderConfiguration& configuration,
+    const HttpJsonPostResponse& httpResponse)
+{
+    AiExecutionResult result;
+    result.requestId = request.execution.requestId;
+    result.providerKind = AiProviderKind::OpenAI;
+    result.locations = request.execution.locations;
+
+    if (!httpResponse.ok) {
+        result.status = AiExecutionStatus::Failed;
+        result.errors.push_back({
+            httpResponse.errorCode.empty() ? "http-request-failed" : httpResponse.errorCode,
+            httpResponse.errorMessage.empty() ? "OpenAI HTTP request failed." : httpResponse.errorMessage,
+        });
+        result.diagnostics.push_back("OpenAI non-streaming dispatch failed before result validation.");
+        return result;
+    }
+
+    auto mapped = ExtractOpenAiResponseResultJson(httpResponse.body, request.execution);
+    result = mapped.providerResult;
+    result.requestId = request.execution.requestId;
+    result.providerKind = AiProviderKind::OpenAI;
+    result.locations = request.execution.locations;
+    result.diagnostics.push_back("OpenAI model: " + configuration.modelName);
+    for (const auto& diagnostic : mapped.diagnostics) {
+        if (std::find(result.diagnostics.begin(), result.diagnostics.end(), diagnostic) == result.diagnostics.end()) {
+            result.diagnostics.push_back(diagnostic);
+        }
+    }
+    return result;
+}
+
+AiExecutionResult DispatchOpenAiProvider(
+    const AiProviderDispatchRequest& request,
+    const HttpJsonPostResponse* fakeResponse)
+{
+    auto configuration = FindProviderConfiguration(request.providerConfigurations, AiProviderKind::OpenAI);
+    if (!configuration.has_value() || !configuration->enabled) {
+        return NotConfiguredOpenAiResult(request.execution, "OpenAI provider is not enabled.");
+    }
+    if (configuration->modelName.empty()) {
+        return NotConfiguredOpenAiResult(request.execution, "OpenAI provider model name is missing.");
+    }
+    if (OpenAiResponsesEndpointUrl(*configuration).empty()) {
+        return NotConfiguredOpenAiResult(request.execution, "OpenAI provider endpoint profile is missing.");
+    }
+
+    if (fakeResponse != nullptr) {
+        return DispatchOpenAiProviderWithResponse(request, *configuration, *fakeResponse);
+    }
+
+    const auto apiKey = ReadEnvironmentVariable("ARTFORGE_OPENAI_API_KEY");
+    if (apiKey.empty()) {
+        return NotConfiguredOpenAiResult(request.execution, "OpenAI API key environment variable is not set.");
+    }
+
+    const auto httpRequest = BuildOpenAiHttpJsonPostRequest(request, *configuration, apiKey);
+    return DispatchOpenAiProviderWithResponse(request, *configuration, PostJsonWithWinHttp(httpRequest));
+}
+
 AiExecutionResult DispatchAiExecutionRequestNoNetwork(const AiProviderDispatchRequest& request)
 {
     if (request.execution.providerKind == AiProviderKind::ManualQueue) {
@@ -1627,6 +1767,24 @@ AiExecutionResult DispatchAiExecutionRequestNoNetwork(const AiProviderDispatchRe
     result.status = AiExecutionStatus::NotImplemented;
     result.errors.push_back({"not-implemented", "API provider network execution is not implemented."});
     return result;
+}
+
+AiExecutionResult DispatchAiExecutionRequestOptionalNetwork(const AiProviderDispatchRequest& request)
+{
+    if (request.execution.providerKind == AiProviderKind::OpenAI) {
+        return DispatchOpenAiProvider(request, nullptr);
+    }
+    return DispatchAiExecutionRequestNoNetwork(request);
+}
+
+AiExecutionResult DispatchAiExecutionRequestWithFakeHttpResponse(
+    const AiProviderDispatchRequest& request,
+    const HttpJsonPostResponse& fakeResponse)
+{
+    if (request.execution.providerKind == AiProviderKind::OpenAI) {
+        return DispatchOpenAiProvider(request, &fakeResponse);
+    }
+    return DispatchAiExecutionRequestNoNetwork(request);
 }
 
 std::string DescribeAiExecutionResult(const AiExecutionResult& result)
