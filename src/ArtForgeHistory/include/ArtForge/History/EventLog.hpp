@@ -78,6 +78,14 @@ struct HistorySnapshotMetadata {
     std::string summary;
     std::string timestamp;
     std::string relatedEventId;
+    std::string reason;
+    std::string relatedSuggestionId;
+    std::string workId;
+    std::string workPath;
+    std::string domain;
+    std::string itemType;
+    std::string itemId;
+    int itemIndex{};
 };
 
 struct HistoryBranchPlaceholder {
@@ -267,6 +275,10 @@ HistoryLogStatus RecordSuggestionReviewHistoryEvent(
     HistoryOperation operation,
     const SuggestionReviewHistoryMetadata& metadata);
 std::string SampleSuggestionReviewHistoryJsonLines();
+StoredHistoryEvent CreateSuggestionApplySnapshotEvent(const SuggestionReviewHistoryMetadata& metadata);
+HistoryLogStatus RecordSuggestionApplySnapshotEvent(
+    const std::filesystem::path& scopeFilePath,
+    const SuggestionReviewHistoryMetadata& metadata);
 
 std::string_view CreateHistoryItemOperationName();
 std::string_view ListHistoryItemsOperationName();

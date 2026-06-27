@@ -104,6 +104,7 @@ struct AcceptPendingSuggestionResult {
     ServiceStatus status;
     ArtForge::Prompting::PendingSuggestion suggestion;
     std::string currentText;
+    std::vector<std::string> warnings;
     SelectedTextEditCommandResult edit;
 };
 

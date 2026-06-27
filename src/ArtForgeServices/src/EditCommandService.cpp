@@ -2,6 +2,7 @@
 
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
+#include "ArtForge/History/EventLog.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -387,6 +388,27 @@ AcceptPendingSuggestionResult AcceptPendingSuggestionCommand(const AcceptPending
         return result;
     }
 
+    const auto snapshotStatus = ArtForge::History::RecordSuggestionApplySnapshotEvent(
+        request.workPath,
+        {
+            request.suggestion.suggestionId,
+            request.suggestion.promptPackagePath.generic_string(),
+            request.suggestion.promptPackagePath.generic_string(),
+            work.file.id,
+            request.workPath.generic_string(),
+            target.domain,
+            target.itemType,
+            target.itemId,
+            target.itemIndex,
+            "accepted",
+            "before suggestion apply",
+        });
+    if (!snapshotStatus.ok) {
+        for (const auto& issue : snapshotStatus.issues) {
+            result.warnings.push_back(issue.message);
+        }
+    }
+
     result.edit = ApplySelectedTextEditCommand({
         request.workPath,
         target.domain,
@@ -412,6 +434,9 @@ std::string DescribeAcceptPendingSuggestionResult(const AcceptPendingSuggestionR
     output << "Summary: " << result.status.summary << "\n";
     for (const auto& diagnostic : result.status.diagnostics) {
         output << "Diagnostic: " << diagnostic.code << " " << diagnostic.message << "\n";
+    }
+    for (const auto& warning : result.warnings) {
+        output << "Warning: " << warning << "\n";
     }
     output << "Current: " << result.currentText << "\n";
     output << "Proposed: " << result.suggestion.proposedText << "\n";
@@ -460,6 +485,16 @@ std::string DescribeAcceptPendingSuggestionSmokeExamples()
         output << "Example: " << item.domain << "\n";
         output << DescribeAcceptPendingSuggestionResult(result) << "\n";
     }
+
+    const auto history = ArtForge::History::ReadHistoryEventJsonLines(smokeRoot / "operations.afhistory.jsonl");
+    int snapshotCount = 0;
+    for (const auto& event : history.events) {
+        if (event.operation == ArtForge::History::HistoryOperation::SnapshotCreated && event.snapshot) {
+            ++snapshotCount;
+        }
+    }
+    output << "Pre-apply snapshot history read: " << (history.status.ok ? "OK" : "failed") << "\n";
+    output << "Pre-apply snapshots: " << snapshotCount << "\n";
 
     std::filesystem::copy_file(cases.front().source, cases.front().target, std::filesystem::copy_options::overwrite_existing);
     ArtForge::Prompting::PendingSuggestion changed;

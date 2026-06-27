@@ -260,6 +260,14 @@ std::optional<HistorySnapshotMetadata> ReadSnapshotMetadataField(std::string_vie
         ReadStringField(*objectJson, "summary").value_or(""),
         ReadStringField(*objectJson, "timestamp").value_or(""),
         ReadStringField(*objectJson, "related_event_id").value_or(""),
+        ReadStringField(*objectJson, "reason").value_or(""),
+        ReadStringField(*objectJson, "related_suggestion_id").value_or(""),
+        ReadStringField(*objectJson, "work_id").value_or(""),
+        ReadStringField(*objectJson, "work_path").value_or(""),
+        ReadStringField(*objectJson, "domain").value_or(""),
+        ReadStringField(*objectJson, "item_type").value_or(""),
+        ReadStringField(*objectJson, "item_id").value_or(""),
+        ReadIntField(*objectJson, "item_index").value_or(0),
     };
 }
 
@@ -565,6 +573,20 @@ void AppendSnapshotMetadata(std::ostringstream& output, const HistorySnapshotMet
     output << "\"summary\":" << Quote(snapshot.summary) << ",";
     output << "\"timestamp\":" << Quote(snapshot.timestamp) << ",";
     output << "\"related_event_id\":" << Quote(snapshot.relatedEventId);
+    if (!snapshot.reason.empty()) {
+        output << ",\"reason\":" << Quote(snapshot.reason);
+    }
+    if (!snapshot.relatedSuggestionId.empty()) {
+        output << ",\"related_suggestion_id\":" << Quote(snapshot.relatedSuggestionId);
+    }
+    if (!snapshot.workPath.empty()) {
+        output << ",\"work_id\":" << Quote(snapshot.workId);
+        output << ",\"work_path\":" << Quote(snapshot.workPath);
+        output << ",\"domain\":" << Quote(snapshot.domain);
+        output << ",\"item_type\":" << Quote(snapshot.itemType);
+        output << ",\"item_id\":" << Quote(snapshot.itemId);
+        output << ",\"item_index\":" << snapshot.itemIndex;
+    }
     output << "}";
 }
 
@@ -1165,6 +1187,52 @@ HistoryLogStatus RecordSuggestionReviewHistoryEvent(
         return AppendHistoryEventJsonLine(
             DefaultOperationHistoryPath(scopeFilePath),
             CreateSuggestionReviewHistoryEvent(operation, metadata));
+    } catch (const std::exception& exception) {
+        return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
+    } catch (...) {
+        return {false, {{0, "history recording failed"}}};
+    }
+}
+
+StoredHistoryEvent CreateSuggestionApplySnapshotEvent(const SuggestionReviewHistoryMetadata& metadata)
+{
+    const auto timestamp = CurrentUtcTimestamp();
+    StoredHistoryEvent event;
+    event.id = "hist.snapshot." + CompactTimestampForId(timestamp) + "." + std::to_string(std::hash<std::string>{}(metadata.suggestionId + metadata.workPath + metadata.itemId));
+    event.timestamp = timestamp;
+    event.actor = HistoryActor::System;
+    event.scope = HistoryScope::Work;
+    event.operation = HistoryOperation::SnapshotCreated;
+    event.summary = "Snapshot metadata before suggestion apply: " + metadata.suggestionId;
+    if (!metadata.workPath.empty()) {
+        event.affectedFiles = {metadata.workPath};
+    }
+    event.snapshot = HistorySnapshotMetadata{
+        "snapshot.before-suggestion." + CompactTimestampForId(timestamp),
+        event.summary,
+        timestamp,
+        metadata.suggestionId,
+        "before suggestion apply",
+        metadata.suggestionId,
+        metadata.workId,
+        metadata.workPath,
+        metadata.domain,
+        metadata.itemType,
+        metadata.itemId,
+        metadata.itemIndex,
+    };
+    event.suggestionReview = metadata;
+    return event;
+}
+
+HistoryLogStatus RecordSuggestionApplySnapshotEvent(
+    const std::filesystem::path& scopeFilePath,
+    const SuggestionReviewHistoryMetadata& metadata)
+{
+    try {
+        return AppendHistoryEventJsonLine(
+            DefaultOperationHistoryPath(scopeFilePath),
+            CreateSuggestionApplySnapshotEvent(metadata));
     } catch (const std::exception& exception) {
         return {false, {{0, std::string{"history recording failed: "} + exception.what()}}};
     } catch (...) {
