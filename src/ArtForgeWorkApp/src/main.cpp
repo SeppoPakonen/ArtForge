@@ -2,6 +2,7 @@
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
 #include "ArtForge/Prompting/PromptPackage.hpp"
+#include "ArtForge/Presentation/WorkAppPresentationAdapter.hpp"
 #include "ArtForge/Services/EditCommandService.hpp"
 #include "ArtForge/Services/PromptCommandService.hpp"
 #include "ArtForge/UiWin32/Shell.hpp"
@@ -39,6 +40,11 @@ bool IsDescribeWorkDomainCommand(int argumentCount, wchar_t** arguments)
 bool IsBuildSelectedPromptCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 6 && std::wstring_view{arguments[1]} == L"--build-selected-prompt";
+}
+
+bool IsDescribeWorkPresentationCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--describe-work-presentation";
 }
 
 bool IsDescribeEditCommandFoundationCommand(int argumentCount, wchar_t** arguments)
@@ -146,6 +152,15 @@ std::string DescribeWorkDomain(const std::filesystem::path& path)
     output << "Work domain: " << (result.file.workDomain.empty() ? "(unspecified)" : result.file.workDomain) << "\n";
     output << "Workspace: " << WorkspaceLabel(result.file.workDomain) << "\n";
     output << ArtForge::Files::DescribeDomainWorkViewModel(path);
+    return output.str();
+}
+
+std::string DescribeWorkPresentation(const std::filesystem::path& path)
+{
+    const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(path);
+    std::ostringstream output;
+    output << "Presentation status: " << (presentation.status.ok ? "OK" : "failed") << "\n";
+    output << ArtForge::Presentation::DescribePropertyListModel(presentation.properties);
     return output.str();
 }
 
@@ -586,6 +601,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
     }
     if (arguments != nullptr && IsBuildSelectedPromptCommand(argumentCount, arguments)) {
         const auto result = BuildSelectedPromptDebugDump(arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return 0;
+    }
+    if (arguments != nullptr && IsDescribeWorkPresentationCommand(argumentCount, arguments)) {
+        const auto result = DescribeWorkPresentation(arguments[2]);
         WriteStdout(result);
         LocalFree(arguments);
         return 0;

@@ -14,6 +14,7 @@ struct WorkAppPresentationModel {
     SelectionModel selection;
     PromptPreviewModel promptPreview;
     ManualAiQueueModel manualAiQueue;
+    PendingSuggestionReviewModel pendingSuggestionReview;
     DirtyStateModel dirtyState;
 };
 

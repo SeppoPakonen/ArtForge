@@ -82,6 +82,20 @@ struct ManualAiQueueModel {
     std::vector<std::string> diagnostics;
 };
 
+struct PendingSuggestionReviewModel {
+    bool available{};
+    std::string suggestionId;
+    std::string targetSummary;
+    std::string originalText;
+    std::string currentText;
+    std::string proposedText;
+    std::string rationale;
+    std::string status;
+    std::vector<std::string> diagnostics;
+    CommandModel acceptCommand{"accept-suggestion", "Accept Suggestion", false};
+    CommandModel rejectCommand{"reject-suggestion", "Reject Suggestion", false};
+};
+
 struct DirtyStateModel {
     bool isDirty{};
     bool savePending{};

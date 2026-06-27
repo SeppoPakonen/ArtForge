@@ -6,7 +6,11 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <optional>
+#include <sstream>
 #include <string>
+#include <string_view>
 
 namespace ArtForge::Presentation {
 
@@ -242,6 +246,159 @@ std::string SafeSlug(std::string value)
     return slug.empty() ? "ai-task" : slug;
 }
 
+std::optional<std::string> ReadStringField(std::string_view json, std::string_view key)
+{
+    const std::string field = "\"" + std::string{key} + "\"";
+    const auto fieldPosition = json.find(field);
+    if (fieldPosition == std::string_view::npos) {
+        return std::nullopt;
+    }
+    const auto colonPosition = json.find(':', fieldPosition + field.size());
+    if (colonPosition == std::string_view::npos) {
+        return std::nullopt;
+    }
+    auto valuePosition = colonPosition + 1;
+    while (valuePosition < json.size() && (json[valuePosition] == ' ' || json[valuePosition] == '\t' || json[valuePosition] == '\r' || json[valuePosition] == '\n')) {
+        ++valuePosition;
+    }
+    if (valuePosition >= json.size() || json[valuePosition] != '"') {
+        return std::nullopt;
+    }
+
+    std::string value;
+    bool escaped = false;
+    for (auto index = valuePosition + 1; index < json.size(); ++index) {
+        const auto character = json[index];
+        if (escaped) {
+            value += character == 'n' ? '\n' : character;
+            escaped = false;
+        } else if (character == '\\') {
+            escaped = true;
+        } else if (character == '"') {
+            return value;
+        } else {
+            value += character;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<int> ReadIntField(std::string_view json, std::string_view key)
+{
+    const std::string field = "\"" + std::string{key} + "\"";
+    const auto fieldPosition = json.find(field);
+    if (fieldPosition == std::string_view::npos) {
+        return std::nullopt;
+    }
+    const auto colonPosition = json.find(':', fieldPosition + field.size());
+    if (colonPosition == std::string_view::npos) {
+        return std::nullopt;
+    }
+    auto valuePosition = colonPosition + 1;
+    while (valuePosition < json.size() && (json[valuePosition] == ' ' || json[valuePosition] == '\t')) {
+        ++valuePosition;
+    }
+    int value = 0;
+    bool found = false;
+    while (valuePosition < json.size() && json[valuePosition] >= '0' && json[valuePosition] <= '9') {
+        found = true;
+        value = value * 10 + (json[valuePosition] - '0');
+        ++valuePosition;
+    }
+    return found ? std::optional<int>{value} : std::nullopt;
+}
+
+std::optional<std::string> ReadCurrentTextForTarget(
+    const std::filesystem::path& workPath,
+    const std::string& domain,
+    const std::string& itemType,
+    const std::string& itemId)
+{
+    if (domain == "lyrics" && itemType == "lyricLine") {
+        const auto lyrics = ArtForge::Files::LoadLyricsWorkViewModel(workPath);
+        for (const auto& line : lyrics.lyricLines) {
+            if (line.id == itemId) {
+                return line.text;
+            }
+        }
+    } else if (domain == "visualArt" && itemType == "visualLayer") {
+        const auto visual = ArtForge::Files::LoadVisualArtWorkViewModel(workPath);
+        for (const auto& layer : visual.viewerLayers) {
+            if (layer.id == itemId) {
+                return layer.intent;
+            }
+        }
+        for (const auto& layer : visual.paintLayers) {
+            if (layer.id == itemId) {
+                return layer.intent;
+            }
+        }
+    } else if (domain == "scriptStoryboard" && itemType == "scriptBlock") {
+        const auto script = ArtForge::Files::LoadScriptStoryboardWorkViewModel(workPath);
+        for (const auto& block : script.blocks) {
+            if (block.id == itemId) {
+                return block.text;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+PendingSuggestionReviewModel BuildPendingSuggestionReviewModel(const std::filesystem::path& workPath)
+{
+    PendingSuggestionReviewModel model;
+    const auto pendingPath = workPath.parent_path() / "pending-suggestions.jsonl";
+    std::ifstream input{pendingPath};
+    if (!input) {
+        model.status = "No pending suggestion file.";
+        model.diagnostics.push_back("No pending suggestion is available for review.");
+        return model;
+    }
+
+    std::string line;
+    while (std::getline(input, line)) {
+        if (!line.empty()) {
+            break;
+        }
+    }
+    if (line.empty()) {
+        model.status = "No pending suggestions.";
+        model.diagnostics.push_back("Pending suggestion file is empty.");
+        return model;
+    }
+
+    model.suggestionId = ReadStringField(line, "id").value_or("");
+    model.status = ReadStringField(line, "status").value_or("unknown");
+    const auto workPathText = ReadStringField(line, "work_path").value_or("");
+    const auto domain = ReadStringField(line, "domain").value_or("");
+    const auto itemType = ReadStringField(line, "item_type").value_or("");
+    const auto itemId = ReadStringField(line, "item_id").value_or("");
+    const auto itemIndex = ReadIntField(line, "item_index").value_or(-1);
+    model.proposedText = ReadStringField(line, "proposed_text").value_or("");
+    model.rationale = ReadStringField(line, "rationale").value_or("");
+    model.targetSummary = domain + "/" + itemType + "#" + itemId + " [" + std::to_string(itemIndex) + "]";
+
+    if (workPathText != workPath.generic_string()) {
+        model.diagnostics.push_back("Pending suggestion target path does not match the opened work file.");
+    }
+
+    const auto currentText = ReadCurrentTextForTarget(workPath, domain, itemType, itemId);
+    if (currentText) {
+        model.currentText = *currentText;
+        model.originalText = *currentText;
+    } else {
+        model.diagnostics.push_back("Current target text is unavailable.");
+    }
+
+    model.available = model.status == "pending" && model.diagnostics.empty();
+    model.acceptCommand.enabled = model.available;
+    model.rejectCommand.enabled = model.status == "pending";
+    if (model.available) {
+        model.diagnostics.push_back("Suggestion is pending review. It will not apply until accepted.");
+    }
+    return model;
+}
+
 ManualAiQueueModel BuildManualAiQueueModel(const std::filesystem::path& workPath, const SelectionModel& selection)
 {
     ManualAiQueueModel model;
@@ -311,6 +468,35 @@ void AddManualAiQueueProperties(PropertyListModel& properties, const ManualAiQue
     }
     for (std::size_t index = 0; index < queue.diagnostics.size(); ++index) {
         AddProperty(properties, "Manual queue diagnostic " + std::to_string(index + 1), queue.diagnostics[index]);
+    }
+}
+
+void AddPendingSuggestionReviewProperties(PropertyListModel& properties, const PendingSuggestionReviewModel& review)
+{
+    AddProperty(properties, "Pending suggestion review", review.available ? "available" : "not available");
+    AddProperty(properties, "Suggestion status", review.status.empty() ? "(none)" : review.status);
+    if (!review.suggestionId.empty()) {
+        AddProperty(properties, "Suggestion id", review.suggestionId);
+    }
+    if (!review.targetSummary.empty()) {
+        AddProperty(properties, "Suggestion target", review.targetSummary);
+    }
+    if (!review.originalText.empty()) {
+        AddProperty(properties, "Original text", review.originalText);
+    }
+    if (!review.currentText.empty()) {
+        AddProperty(properties, "Current text", review.currentText);
+    }
+    if (!review.proposedText.empty()) {
+        AddProperty(properties, "Suggested text", review.proposedText);
+    }
+    if (!review.rationale.empty()) {
+        AddProperty(properties, "Suggestion rationale", review.rationale);
+    }
+    AddProperty(properties, "Accept Suggestion command", review.acceptCommand.enabled ? "enabled" : "disabled");
+    AddProperty(properties, "Reject Suggestion command", review.rejectCommand.enabled ? "enabled" : "disabled");
+    for (std::size_t index = 0; index < review.diagnostics.size(); ++index) {
+        AddProperty(properties, "Suggestion diagnostic " + std::to_string(index + 1), review.diagnostics[index]);
     }
 }
 
@@ -390,10 +576,12 @@ WorkAppPresentationModel BuildWorkAppPresentationModel(
     model.selection = selection;
     model.promptPreview = BuildPromptPreview(workPath, model.selection);
     model.manualAiQueue = BuildManualAiQueueModel(workPath, model.selection);
+    model.pendingSuggestionReview = BuildPendingSuggestionReviewModel(workPath);
     model.dirtyState = BuildCleanDirtyState();
     AddSelectionProperties(model.properties, workPath, model.selection);
     AddPromptPreviewProperties(model.properties, model.promptPreview);
     AddManualAiQueueProperties(model.properties, model.manualAiQueue);
+    AddPendingSuggestionReviewProperties(model.properties, model.pendingSuggestionReview);
     AddDirtyStateProperties(model.properties, model.dirtyState);
 
     if (!result.status.ok) {
