@@ -86,6 +86,11 @@ bool IsWriteManualAiQueueCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 9 && std::wstring_view{arguments[1]} == L"--write-manual-ai-queue";
 }
 
+bool IsPollManualAiQueueCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 8 && std::wstring_view{arguments[1]} == L"--poll-manual-ai-queue";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -445,6 +450,25 @@ std::string WriteManualAiQueue(wchar_t** arguments)
     return ArtForge::Prompting::DescribeManualAiQueueWriteResult(result);
 }
 
+std::string PollManualAiQueue(int argumentCount, wchar_t** arguments)
+{
+    ArtForge::Prompting::AiExecutionRequest execution;
+    execution.providerKind = ArtForge::Prompting::AiProviderKind::ManualQueue;
+    execution.locations.expectedResultPath = std::filesystem::path{arguments[2]};
+    execution.target.workPath = std::filesystem::path{arguments[3]};
+    execution.target.domain = WideToUtf8(arguments[4]);
+    execution.target.itemType = WideToUtf8(arguments[5]);
+    execution.target.itemId = WideToUtf8(arguments[6]);
+    execution.target.field = DefaultTargetField(execution.target.domain, execution.target.itemType);
+    const bool import = argumentCount >= 8 && std::wstring_view{arguments[7]} == L"import";
+
+    const auto result = ArtForge::Prompting::PollManualAiQueueResult({
+        execution,
+        import,
+    });
+    return ArtForge::Prompting::DescribeManualAiQueuePollResult(result);
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -517,6 +541,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("Manual AI queue write: OK") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsPollManualAiQueueCommand(argumentCount, arguments)) {
+        const auto result = PollManualAiQueue(argumentCount, arguments);
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Manual AI queue poll: OK") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

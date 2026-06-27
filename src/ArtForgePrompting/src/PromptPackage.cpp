@@ -1051,4 +1051,99 @@ std::string DescribeManualAiQueueWriteResult(const ManualAiQueueWriteResult& res
     return output.str();
 }
 
+ManualAiQueuePollResult PollManualAiQueueResult(const ManualAiQueuePollRequest& request)
+{
+    ManualAiQueuePollResult result;
+    result.providerResult.requestId = request.execution.requestId;
+    result.providerResult.providerKind = AiProviderKind::ManualQueue;
+    result.providerResult.locations = request.execution.locations;
+
+    if (request.execution.locations.expectedResultPath.empty()) {
+        result.providerResult.status = AiExecutionStatus::Failed;
+        result.diagnostics.push_back("expected result path is required");
+        return result;
+    }
+    if (!std::filesystem::exists(request.execution.locations.expectedResultPath)) {
+        result.ok = true;
+        result.providerResult.status = AiExecutionStatus::WaitingForResult;
+        result.diagnostics.push_back("result file is not present yet");
+        return result;
+    }
+
+    std::ifstream input{request.execution.locations.expectedResultPath, std::ios::binary};
+    if (!input) {
+        result.providerResult.status = AiExecutionStatus::Failed;
+        result.diagnostics.push_back("could not open result file");
+        return result;
+    }
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+
+    auto validation = ValidateAiResultJsonText(buffer.str());
+    if (!validation.ok) {
+        result.providerResult.status = AiExecutionStatus::ResultInvalid;
+        result.diagnostics = validation.diagnostics;
+        result.providerResult.diagnostics = validation.diagnostics;
+        return result;
+    }
+
+    for (const auto& suggestion : validation.pendingSuggestions) {
+        if (suggestion.target.workPath.generic_string() != request.execution.target.workPath.generic_string()
+            || suggestion.target.domain != request.execution.target.domain
+            || suggestion.target.itemType != request.execution.target.itemType
+            || suggestion.target.itemId != request.execution.target.itemId) {
+            result.providerResult.status = AiExecutionStatus::TargetMismatch;
+            result.diagnostics.push_back("AI result target does not match the queued request target");
+            result.providerResult.diagnostics = result.diagnostics;
+            return result;
+        }
+    }
+
+    result.providerResult.pendingSuggestions = validation.pendingSuggestions;
+    if (!request.importPendingSuggestions) {
+        result.ok = true;
+        result.providerResult.status = AiExecutionStatus::ResultFound;
+        return result;
+    }
+
+    const auto outputPath = request.execution.target.workPath.parent_path() / "pending-suggestions.jsonl";
+    std::ofstream pending{outputPath, std::ios::app};
+    if (!pending) {
+        result.providerResult.status = AiExecutionStatus::Failed;
+        result.diagnostics.push_back("could not open pending suggestion file for append");
+        result.providerResult.diagnostics = result.diagnostics;
+        return result;
+    }
+    for (auto suggestion : validation.pendingSuggestions) {
+        suggestion.promptPackagePath = request.execution.locations.expectedResultPath;
+        pending << SerializePendingSuggestionJsonLine(suggestion) << "\n";
+    }
+
+    result.ok = true;
+    result.providerResult.status = AiExecutionStatus::ImportedPendingSuggestion;
+    result.providerResult.locations.importedSuggestionsPath = outputPath;
+    return result;
+}
+
+std::string DescribeManualAiQueuePollResult(const ManualAiQueuePollResult& result)
+{
+    std::ostringstream output;
+    output << "Manual AI queue poll: " << (result.ok ? "OK" : "failed") << "\n";
+    output << "Status: " << ToDisplayName(result.providerResult.status) << "\n";
+    output << "Result file: " << result.providerResult.locations.expectedResultPath.generic_string() << "\n";
+    output << "Pending suggestions: " << result.providerResult.pendingSuggestions.size() << "\n";
+    if (!result.providerResult.locations.importedSuggestionsPath.empty()) {
+        output << "Imported suggestions file: " << result.providerResult.locations.importedSuggestionsPath.generic_string() << "\n";
+    }
+    for (const auto& diagnostic : result.diagnostics) {
+        output << "Diagnostic: " << diagnostic << "\n";
+    }
+    for (const auto& diagnostic : result.providerResult.diagnostics) {
+        if (std::find(result.diagnostics.begin(), result.diagnostics.end(), diagnostic) == result.diagnostics.end()) {
+            output << "Diagnostic: " << diagnostic << "\n";
+        }
+    }
+    return output.str();
+}
+
 }
