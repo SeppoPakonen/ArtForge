@@ -46,6 +46,8 @@ constexpr int DetailTabId = 2004;
 constexpr int DetailListId = 2005;
 constexpr int CommandBarId = 2006;
 constexpr int DocumentTabId = 2007;
+constexpr int BottomTabId = 2008;
+constexpr int BottomListId = 2009;
 
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
@@ -58,6 +60,8 @@ struct ScopeShellState {
     ListViewReport domainList;
     TabControl documentTabs;
     TabControl detailTabs;
+    TabControl bottomTabs;
+    ListViewReport bottomList;
     PropertyPanel propertyPanel;
     ArtForge::Presentation::SelectionModel workSelection;
     ArtForge::Presentation::DirtyStateModel dirtyState;
@@ -503,6 +507,9 @@ void RenderTableModel(ListViewReport& list, const ArtForge::Presentation::TableM
     }
 }
 
+bool IsOpenedWorkFile(const ScopeShellState& state);
+ArtForge::Presentation::WorkAppPresentationModel CurrentWorkPresentation(const ScopeShellState& state);
+
 void PopulateWorkDomainList(ScopeShellState& state)
 {
     if (state.openedPath.empty()) {
@@ -515,6 +522,44 @@ void PopulateWorkDomainList(ScopeShellState& state)
 
     const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(std::filesystem::path{state.openedPath});
     RenderTableModel(state.domainList, presentation.domainTable);
+}
+
+void AddBottomPanelRow(ScopeShellState& state, std::wstring_view category, std::wstring_view message)
+{
+    state.bottomList.AddRow({category, message});
+}
+
+void PopulateBottomPanel(ScopeShellState& state)
+{
+    state.bottomList.Clear();
+    state.bottomList.AddColumn(0, L"Area", 140);
+    state.bottomList.AddColumn(1, L"Message", 720);
+
+    AddBottomPanelRow(state, L"Output", state.loadStatusText);
+    AddBottomPanelRow(state, L"Output", state.loadDetailText);
+    AddBottomPanelRow(state, L"Tasks", IsOpenedWorkFile(state) ? L"Work commands available through selection state." : L"Open a work file to enable work-item tasks.");
+
+    if (IsOpenedWorkFile(state)) {
+        const auto presentation = CurrentWorkPresentation(state);
+        AddBottomPanelRow(state, L"Tasks", Utf8ToWide(presentation.manualAiQueue.status));
+        for (const auto& diagnostic : presentation.manualAiQueue.diagnostics) {
+            AddBottomPanelRow(state, L"Tasks", Utf8ToWide(diagnostic));
+        }
+        for (const auto& provider : presentation.providerStatus.providers) {
+            AddBottomPanelRow(
+                state,
+                L"Provider",
+                Utf8ToWide(provider.providerKind + ": " + provider.configurationStatus + " / " + provider.requestStatus));
+            if (!provider.lastDiagnostic.empty()) {
+                AddBottomPanelRow(state, L"Provider", Utf8ToWide(provider.lastDiagnostic));
+            }
+        }
+        AddBottomPanelRow(state, L"History", state.openedPath.empty() ? L"No history path." : L"File operation history records are appended next to the opened scope when actions run.");
+        return;
+    }
+
+    AddBottomPanelRow(state, L"Provider", L"Provider status is available in WorkApp scope.");
+    AddBottomPanelRow(state, L"History", state.openedPath.empty() ? L"No opened file." : L"File load history was recorded for this scope.");
 }
 
 void PopulatePropertyPanel(ScopeShellState& state)
@@ -673,6 +718,7 @@ void HandleQueueManualAiTaskCommand(ScopeShellState& state)
     state.loadDetailText = Utf8ToWide(ArtForge::Prompting::DescribeManualAiQueueWriteResult(result));
     PopulatePropertyPanel(state);
     RefreshCommandBar(state);
+    PopulateBottomPanel(state);
 }
 
 void HandleManualQueuePollTimer(ScopeShellState& state, HWND window)
@@ -689,6 +735,7 @@ void HandleManualQueuePollTimer(ScopeShellState& state, HWND window)
     state.loadDetailText = Utf8ToWide(ArtForge::Prompting::DescribeManualAiQueuePollResult(result));
     SetStatusText(state, Utf8ToWide("Manual queue poll: " + std::string{ArtForge::Prompting::ToDisplayName(result.providerResult.status)}));
     PopulatePropertyPanel(state);
+    PopulateBottomPanel(state);
 
     if (result.providerResult.status != ArtForge::Prompting::AiExecutionStatus::WaitingForResult) {
         state.activeManualAiRequest.reset();
@@ -731,6 +778,7 @@ void HandleSaveCommand(ScopeShellState& state)
         result.command.status.summary);
     PopulatePropertyPanel(state);
     RefreshCommandBar(state);
+    PopulateBottomPanel(state);
 }
 
 void HandleRefreshCommand(ScopeShellState& state)
@@ -747,6 +795,7 @@ void HandleRefreshCommand(ScopeShellState& state)
     PopulatePropertyPanel(state);
     RefreshCommandBar(state);
     SetStatusText(state, L"Shell refreshed.");
+    PopulateBottomPanel(state);
 }
 
 void HandleBuildPromptCommand(ScopeShellState& state)
@@ -767,6 +816,7 @@ void HandleBuildPromptCommand(ScopeShellState& state)
     state.loadDetailText = Utf8ToWide(result.command.debugSummary);
     SetStatusText(state, Utf8ToWide(result.command.status.summary));
     PopulatePropertyPanel(state);
+    PopulateBottomPanel(state);
     RecordPresentationCommand(
         state,
         ArtForge::History::HistoryOperation::PromptPreviewRequested,
@@ -807,6 +857,7 @@ void HandleWorkDomainSelection(ScopeShellState& state, int rowIndex)
             "preview-ready");
     }
     RefreshCommandBar(state);
+    PopulateBottomPanel(state);
 }
 
 HMENU CreateShellMenu()
@@ -854,9 +905,19 @@ void LayoutChildren(HWND window)
     RECT contentRect = client;
     contentRect.top += state->metrics.toolbarHeight;
 
+    const int outputHeight = state->metrics.outputPaneHeight;
+    const int outputTop = client.bottom - statusHeight - outputHeight;
+    RECT bottomPanelRect{
+        client.left + state->metrics.margin,
+        outputTop,
+        client.right - state->metrics.margin,
+        client.bottom - statusHeight - state->metrics.gap,
+    };
+    state->bottomTabs.Move(bottomPanelRect);
+
     const auto rectangles = ArtForge::UiWin32::CalculateThreePaneLayout(
         contentRect,
-        statusHeight,
+        statusHeight + outputHeight,
         ArtForge::UiWin32::ToPaneLayoutMetrics(state->metrics));
     ArtForge::UiWin32::ApplyThreePaneLayout(
         state->navigationTree,
@@ -879,6 +940,9 @@ void LayoutChildren(HWND window)
 
     const auto detailArea = state->detailTabs.DisplayArea();
     state->propertyPanel.Move(detailArea);
+
+    const auto bottomArea = state->bottomTabs.DisplayArea();
+    state->bottomList.Move(bottomArea);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -943,6 +1007,14 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         state->detailTabs.AddTab(1, L"Prompt preview");
         state->detailTabs.AddTab(2, L"Suggestion review");
         state->detailTabs.AddTab(3, L"Provider status");
+
+        state->bottomTabs.Create(window, BottomTabId, create->hInstance);
+        state->bottomTabs.AddTab(0, L"Output");
+        state->bottomTabs.AddTab(1, L"Tasks");
+        state->bottomTabs.AddTab(2, L"Provider");
+        state->bottomTabs.AddTab(3, L"History");
+        state->bottomList.Create(window, BottomListId, create->hInstance);
+        PopulateBottomPanel(*state);
 
         state->propertyPanel.Create(window, DetailListId, create->hInstance);
         PopulatePropertyPanel(*state);
