@@ -107,6 +107,11 @@ bool IsSmokeHttpJsonPostCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-http-json-post";
 }
 
+bool IsSmokeOpenAiMappingCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-openai-mapping";
+}
+
 bool IsDispatchAiProviderCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--dispatch-ai-provider";
@@ -400,6 +405,19 @@ std::string ValidateAiResult(wchar_t** arguments)
     buffer << input.rdbuf();
     return ArtForge::Prompting::DescribeAiResultValidation(
         ArtForge::Prompting::ValidateAiResultJsonText(buffer.str()));
+}
+
+std::string SmokeOpenAiMapping()
+{
+    const std::filesystem::path fixturePath{"examples/ai-providers/openai-response-lyrics-line-repair.json"};
+    std::ifstream input{fixturePath, std::ios::binary};
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    std::ostringstream output;
+    output << "Fixture: " << fixturePath.generic_string() << "\n";
+    output << "Fixture load: " << (input ? "OK" : "failed") << "\n";
+    output << ArtForge::Prompting::DescribeOpenAiMappingSmokeExamples(buffer.str());
+    return output.str();
 }
 
 std::string ImportAiResultPending(wchar_t** arguments)
@@ -802,6 +820,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         return result.find("Fake transport success") != std::string::npos
             && result.find("HTTP JSON POST: OK") != std::string::npos
             && result.find("HTTP JSON POST: failed") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeOpenAiMappingCommand(argumentCount, arguments)) {
+        const auto result = SmokeOpenAiMapping();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Fixture load: OK") != std::string::npos
+            && result.find("OpenAI response mapping: OK") != std::string::npos
+            && result.find("AI provider dispatch: resultFound") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr && IsDispatchAiProviderCommand(argumentCount, arguments)) {
         const auto result = DispatchAiProvider(argumentCount, arguments);

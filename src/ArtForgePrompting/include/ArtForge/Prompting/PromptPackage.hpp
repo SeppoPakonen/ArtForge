@@ -194,6 +194,21 @@ struct HttpJsonPostResponse {
     std::string errorMessage;
 };
 
+struct OpenAiRequestMappingRequest {
+    AiExecutionRequest execution;
+    AiProviderConfiguration providerConfiguration;
+    std::string promptText;
+    std::string resultSchemaJson;
+};
+
+struct OpenAiResponseMappingResult {
+    bool ok{};
+    std::string requestId;
+    std::string candidateJson;
+    AiExecutionResult providerResult;
+    std::vector<std::string> diagnostics;
+};
+
 struct PromptLayerDescriptor {
     PromptLayer layer;
     std::string_view displayName;
@@ -279,6 +294,11 @@ HttpJsonPostResponse PostJsonWithWinHttp(const HttpJsonPostRequest& request);
 HttpJsonPostResponse FakeHttpJsonPostResponse(int statusCode, std::string body);
 std::string DescribeHttpJsonPostResponse(const HttpJsonPostResponse& response);
 std::string DescribeHttpJsonPostSmokeExamples();
+std::string BuildOpenAiResponsesRequestJson(const OpenAiRequestMappingRequest& request);
+OpenAiResponseMappingResult ExtractOpenAiResponseResultJson(
+    std::string_view responseJson,
+    const AiExecutionRequest& execution);
+std::string DescribeOpenAiMappingSmokeExamples(std::string_view responseJson);
 
 constexpr std::array<PromptLayerDescriptor, 7> PromptContextOrder{{
     {PromptLayer::GeneralCreativeRules, "general creative rules", "general_rules.md", PromptInputFormat::Markdown},

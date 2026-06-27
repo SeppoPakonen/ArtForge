@@ -1,0 +1,8 @@
+{
+  "id": "resp_artforge_fake_001",
+  "object": "response",
+  "created_at": 0,
+  "status": "completed",
+  "model": "gpt-placeholder",
+  "output_text": "{\"format\":\"artforge.ai.selectedItemResult\",\"schemaVersion\":1,\"resultId\":\"ai.result.openai.fake.001\",\"promptPackageId\":\"prompt.selected.lyrics.001\",\"target\":{\"workPath\":\"examples/work-domains/lyrics.afwork.json\",\"domain\":\"lyrics\",\"itemType\":\"lyricLine\",\"itemId\":\"line.v1.001\",\"itemIndex\":0,\"field\":\"text\"},\"suggestions\":[{\"id\":\"suggestion.openai.fake.001\",\"summary\":\"Improve singability while preserving the door image.\"}],\"critiqueItems\":[\"The current line is clear but slightly static.\"],\"replacementCandidates\":[{\"id\":\"candidate.openai.fake.001\",\"operation\":\"replaceText\",\"field\":\"text\",\"proposedText\":\"I leave the door with a quiet name\",\"rationale\":\"Keeps the concrete image and moves better as a sung phrase.\",\"diagnostics\":[]}],\"ruleHits\":[\"Preserve concrete image.\"],\"ruleViolations\":[],\"unresolvedQuestions\":[],\"confidence\":0.72,\"rationale\":\"A small line repair is enough for this pass.\"}"
+}

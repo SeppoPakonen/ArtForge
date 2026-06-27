@@ -453,7 +453,26 @@ std::string ExtractStringField(std::string_view json, std::string_view key)
     for (auto index = quotePosition + 1; index < json.size(); ++index) {
         const char character = json[index];
         if (escaped) {
-            value += character;
+            switch (character) {
+            case 'n':
+                value += '\n';
+                break;
+            case 'r':
+                value += '\r';
+                break;
+            case 't':
+                value += '\t';
+                break;
+            case '\\':
+                value += '\\';
+                break;
+            case '"':
+                value += '"';
+                break;
+            default:
+                value += character;
+                break;
+            }
             escaped = false;
             continue;
         }
@@ -465,6 +484,57 @@ std::string ExtractStringField(std::string_view json, std::string_view key)
             return value;
         }
         value += character;
+    }
+    return {};
+}
+
+std::string Trim(std::string value)
+{
+    const auto first = value.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) {
+        return {};
+    }
+    const auto last = value.find_last_not_of(" \t\r\n");
+    return value.substr(first, last - first + 1);
+}
+
+std::string ExtractFirstJsonObject(std::string_view text)
+{
+    const auto begin = text.find('{');
+    if (begin == std::string_view::npos) {
+        return {};
+    }
+
+    int depth = 0;
+    bool inString = false;
+    bool escaped = false;
+    for (auto index = begin; index < text.size(); ++index) {
+        const char character = text[index];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (character == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (character == '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) {
+            continue;
+        }
+        if (character == '{') {
+            ++depth;
+            continue;
+        }
+        if (character == '}') {
+            --depth;
+            if (depth == 0) {
+                return std::string{text.substr(begin, index - begin + 1)};
+            }
+        }
     }
     return {};
 }
@@ -1406,6 +1476,121 @@ std::string DescribeHttpJsonPostSmokeExamples()
     output << DescribeHttpJsonPostResponse(FakeHttpJsonPostResponse(200, "{\"ok\":true}")) << "\n";
     output << "Fake transport failure\n";
     output << DescribeHttpJsonPostResponse(FakeHttpJsonPostResponse(503, "{\"error\":\"unavailable\"}"));
+    return output.str();
+}
+
+std::string BuildOpenAiResponsesRequestJson(const OpenAiRequestMappingRequest& request)
+{
+    const auto model = request.providerConfiguration.modelName.empty()
+        ? std::string{"model-placeholder"}
+        : request.providerConfiguration.modelName;
+    const auto schema = Trim(request.resultSchemaJson).empty()
+        ? std::string{"{\"type\":\"object\"}"}
+        : Trim(request.resultSchemaJson);
+
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"model\": " << Quote(model) << ",\n";
+    output << "  \"stream\": false,\n";
+    output << "  \"metadata\": {\n";
+    output << "    \"artforgeRequestId\": " << Quote(request.execution.requestId) << ",\n";
+    output << "    \"artforgeProvider\": \"openai\",\n";
+    output << "    \"requestedOperation\": " << Quote(request.execution.requestedOperation) << "\n";
+    output << "  },\n";
+    output << "  \"input\": [\n";
+    output << "    {\n";
+    output << "      \"role\": \"developer\",\n";
+    output << "      \"content\": \"Return exactly one ArtForge AI result JSON object. Do not include Markdown fences or explanatory text.\"\n";
+    output << "    },\n";
+    output << "    {\n";
+    output << "      \"role\": \"user\",\n";
+    output << "      \"content\": " << Quote(request.promptText) << "\n";
+    output << "    }\n";
+    output << "  ],\n";
+    output << "  \"text\": {\n";
+    output << "    \"format\": {\n";
+    output << "      \"type\": \"json_schema\",\n";
+    output << "      \"name\": \"artforge_ai_result\",\n";
+    output << "      \"strict\": true,\n";
+    output << "      \"schema\": " << schema << "\n";
+    output << "    }\n";
+    output << "  }\n";
+    output << "}\n";
+    return output.str();
+}
+
+OpenAiResponseMappingResult ExtractOpenAiResponseResultJson(
+    std::string_view responseJson,
+    const AiExecutionRequest& execution)
+{
+    OpenAiResponseMappingResult result;
+    result.requestId = execution.requestId;
+    result.providerResult.requestId = execution.requestId;
+    result.providerResult.providerKind = AiProviderKind::OpenAI;
+    result.providerResult.locations = execution.locations;
+
+    auto candidate = ExtractStringField(responseJson, "output_text");
+    if (candidate.empty()) {
+        candidate = ExtractStringField(responseJson, "text");
+    }
+    candidate = ExtractFirstJsonObject(candidate.empty() ? responseJson : std::string_view{candidate});
+    if (candidate.empty()) {
+        result.providerResult.status = AiExecutionStatus::ResultInvalid;
+        result.diagnostics.push_back("OpenAI response did not contain an ArtForge JSON result candidate.");
+        result.providerResult.diagnostics = result.diagnostics;
+        return result;
+    }
+
+    result.candidateJson = candidate;
+    auto validation = ValidateAiResultJsonText(candidate);
+    if (!validation.ok) {
+        result.providerResult.status = AiExecutionStatus::ResultInvalid;
+        result.diagnostics = validation.diagnostics;
+        result.providerResult.diagnostics = validation.diagnostics;
+        return result;
+    }
+
+    result.ok = true;
+    result.providerResult.status = AiExecutionStatus::ResultFound;
+    result.providerResult.pendingSuggestions = validation.pendingSuggestions;
+    result.diagnostics.push_back("OpenAI response candidate validated as ArtForge AI result JSON.");
+    result.providerResult.diagnostics = result.diagnostics;
+    return result;
+}
+
+std::string DescribeOpenAiMappingSmokeExamples(std::string_view responseJson)
+{
+    AiExecutionRequest execution;
+    execution.requestId = "openai-map-smoke-001";
+    execution.providerKind = AiProviderKind::OpenAI;
+    execution.promptPackagePath = "examples/prompt-selected-items/lyrics-line-repair.afprompt.json";
+    execution.promptPackageSummary = "Selected item prompt package";
+    execution.resultSchemaPath = "examples/prompt-build/output_schema.json";
+    execution.requestedOperation = "line-repair";
+    execution.target.workPath = "examples/work-domains/lyrics.afwork.json";
+    execution.target.domain = "lyrics";
+    execution.target.itemType = "lyricLine";
+    execution.target.itemId = "line.v1.001";
+    execution.target.itemIndex = 0;
+    execution.target.field = "text";
+
+    const auto requestJson = BuildOpenAiResponsesRequestJson({
+        execution,
+        {AiProviderKind::OpenAI, "OpenAI", "responses", "gpt-placeholder", true},
+        "# ArtForge prompt package\n\nReturn JSON for the selected lyric line.",
+        "{\"type\":\"object\",\"additionalProperties\":true}",
+    });
+    const auto mapped = ExtractOpenAiResponseResultJson(responseJson, execution);
+
+    std::ostringstream output;
+    output << "OpenAI request mapping\n";
+    output << requestJson << "\n";
+    output << "OpenAI response mapping: " << (mapped.ok ? "OK" : "failed") << "\n";
+    output << "Candidate bytes: " << mapped.candidateJson.size() << "\n";
+    output << DescribeAiExecutionResult(mapped.providerResult);
+    for (const auto& diagnostic : mapped.diagnostics) {
+        output << "Mapping diagnostic: " << diagnostic << "\n";
+    }
     return output.str();
 }
 
