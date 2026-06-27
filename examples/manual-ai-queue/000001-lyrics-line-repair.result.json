@@ -1,0 +1,31 @@
+{
+  "resultId": "result.manual.000001",
+  "requestId": "manual-000001-lyrics-line-repair",
+  "promptPackageId": "lyrics-line-repair",
+  "target": {
+    "workPath": "examples/work-domains/lyrics.afwork.json",
+    "domain": "lyrics",
+    "itemType": "lyricLine",
+    "itemId": "line.v1.001",
+    "field": "text"
+  },
+  "suggestions": [
+    {
+      "id": "suggestion.manual.000001",
+      "proposedText": "Keep the signal clear and let the chorus answer.",
+      "rationale": "Keeps the existing direct tone while tightening the image."
+    }
+  ],
+  "critiqueItems": [],
+  "replacementCandidates": [
+    {
+      "id": "candidate.manual.000001",
+      "proposedText": "Keep the signal clear and let the chorus answer."
+    }
+  ],
+  "ruleHits": [],
+  "ruleViolations": [],
+  "unresolvedQuestions": [],
+  "confidence": 0.72,
+  "rationale": "Small line-level repair candidate for review."
+}

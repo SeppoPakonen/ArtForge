@@ -1,0 +1,12 @@
+# ArtForge Manual AI Queue Request
+
+Request id: manual-000001-lyrics-line-repair
+Operation: line-repair
+Target: lyrics / lyricLine / line.v1.001 / text
+
+Use the prompt package at:
+
+examples/prompt-selected-items/lyrics-line-repair.afprompt.json
+
+Return only JSON matching docs/prompting/ai-result-contract.md. Do not modify
+project files directly.

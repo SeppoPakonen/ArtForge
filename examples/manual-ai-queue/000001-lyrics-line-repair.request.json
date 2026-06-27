@@ -1,0 +1,24 @@
+{
+  "format": "artforge.manualAiQueue.request",
+  "schemaVersion": 1,
+  "id": "manual-000001-lyrics-line-repair",
+  "sequence": 1,
+  "createdAt": "2026-06-27T00:00:00Z",
+  "providerKind": "manualQueue",
+  "requestedOperation": "line-repair",
+  "promptPackage": {
+    "path": "examples/prompt-selected-items/lyrics-line-repair.afprompt.json",
+    "summary": "Selected lyric line repair prompt"
+  },
+  "copyPastePromptPath": "000001-lyrics-line-repair.prompt.txt",
+  "expectedResultPath": "000001-lyrics-line-repair.result.json",
+  "statusPath": "000001-lyrics-line-repair.status.json",
+  "resultSchemaPath": "docs/prompting/ai-result-contract.md",
+  "target": {
+    "workPath": "examples/work-domains/lyrics.afwork.json",
+    "domain": "lyrics",
+    "itemType": "lyricLine",
+    "itemId": "line.v1.001",
+    "field": "text"
+  }
+}
