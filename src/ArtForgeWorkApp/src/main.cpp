@@ -101,6 +101,11 @@ bool IsDispatchAiProviderCommand(int argumentCount, wchar_t** arguments)
     return argumentCount >= 3 && std::wstring_view{arguments[1]} == L"--dispatch-ai-provider";
 }
 
+bool IsSmokeAcceptPendingSuggestionsCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-accept-pending-suggestions";
+}
+
 std::string WorkspaceLabel(std::string_view workDomain)
 {
     if (workDomain == "lyrics") {
@@ -614,6 +619,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
         WriteStdout(result);
         LocalFree(arguments);
         return result.find("AI provider dispatch: failed") == std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeAcceptPendingSuggestionsCommand(argumentCount, arguments)) {
+        const auto result = ArtForge::Services::DescribeAcceptPendingSuggestionSmokeExamples();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Accept pending suggestion: OK") != std::string::npos
+            && result.find("current_text_changed") != std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);

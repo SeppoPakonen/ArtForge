@@ -1,7 +1,11 @@
 #include "ArtForge/Services/EditCommandService.hpp"
 
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
+#include "ArtForge/Files/ScopeFiles.hpp"
 
+#include <filesystem>
+#include <fstream>
+#include <optional>
 #include <sstream>
 #include <utility>
 
@@ -53,6 +57,44 @@ std::string EditableFieldForSelection(std::string_view domain, std::string_view 
         return "text";
     }
     return {};
+}
+
+std::optional<std::string> ReadCurrentText(
+    const std::filesystem::path& workPath,
+    std::string_view domain,
+    std::string_view itemType,
+    std::string_view itemId)
+{
+    if (domain == "lyrics" && (itemType == "lyricLine" || itemType == "lyric_line")) {
+        const auto model = ArtForge::Files::LoadLyricsWorkViewModel(workPath);
+        for (const auto& line : model.lyricLines) {
+            if (line.id == itemId) {
+                return line.text;
+            }
+        }
+    }
+    if (domain == "visualArt" && (itemType == "visualLayer" || itemType == "visual_layer")) {
+        const auto model = ArtForge::Files::LoadVisualArtWorkViewModel(workPath);
+        for (const auto& layer : model.viewerLayers) {
+            if (layer.id == itemId) {
+                return layer.intent;
+            }
+        }
+        for (const auto& layer : model.paintLayers) {
+            if (layer.id == itemId) {
+                return layer.intent;
+            }
+        }
+    }
+    if (domain == "scriptStoryboard" && (itemType == "scriptBlock" || itemType == "script_block")) {
+        const auto model = ArtForge::Files::LoadScriptStoryboardWorkViewModel(workPath);
+        for (const auto& block : model.blocks) {
+            if (block.id == itemId) {
+                return block.text;
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 EditTarget MakeTarget(
@@ -301,6 +343,138 @@ SelectedTextEditCommandResult ApplySelectedTextEditCommand(const SelectedTextEdi
     result.save.status = MakeOkStatus("Selected text edit saved.");
     result.save.debugSummary = "Selected text edit applied through edit command service and safe file roundtrip.";
     return result;
+}
+
+AcceptPendingSuggestionResult AcceptPendingSuggestionCommand(const AcceptPendingSuggestionRequest& request)
+{
+    AcceptPendingSuggestionResult result;
+    result.suggestion = request.suggestion;
+
+    if (request.suggestion.status != ArtForge::Prompting::PendingSuggestionStatus::Pending) {
+        result.status = MakeErrorStatus("suggestion_not_pending", "Only pending suggestions can be accepted.");
+        return result;
+    }
+
+    const auto& target = request.suggestion.target;
+    if (target.workPath.generic_string() != request.workPath.generic_string()) {
+        result.status = MakeErrorStatus("suggestion_target_mismatch", "Suggestion work path does not match the opened work file.");
+        return result;
+    }
+
+    const auto work = ArtForge::Files::LoadWorkScopeFile(request.workPath);
+    if (!work.status.ok) {
+        result.status = MakeErrorStatus("work_file_load_failed", "Suggestion target work file could not be loaded.");
+        return result;
+    }
+    if (!request.expectedWorkId.empty() && work.file.id != request.expectedWorkId) {
+        result.status = MakeErrorStatus("suggestion_work_id_mismatch", "Suggestion target work id does not match.");
+        return result;
+    }
+    if (work.file.workDomain != target.domain) {
+        result.status = MakeErrorStatus("suggestion_domain_mismatch", "Suggestion target domain does not match the work file.");
+        return result;
+    }
+
+    const auto currentText = ReadCurrentText(request.workPath, target.domain, target.itemType, target.itemId);
+    if (!currentText) {
+        result.status = MakeErrorStatus("suggestion_target_not_found", "Suggestion target item was not found.");
+        return result;
+    }
+    result.currentText = *currentText;
+
+    if (!request.expectedCurrentText.empty() && request.expectedCurrentText != result.currentText) {
+        result.status = MakeErrorStatus("current_text_changed", "Current text differs from the expected suggestion baseline.");
+        return result;
+    }
+
+    result.edit = ApplySelectedTextEditCommand({
+        request.workPath,
+        target.domain,
+        target.itemType,
+        target.itemId,
+        target.itemIndex,
+        request.suggestion.proposedText,
+        request.actor.empty() ? "user" : request.actor,
+    });
+    result.status = result.edit.save.status;
+    if (result.status.ok) {
+        result.suggestion.status = ArtForge::Prompting::PendingSuggestionStatus::Accepted;
+    }
+    return result;
+}
+
+std::string DescribeAcceptPendingSuggestionResult(const AcceptPendingSuggestionResult& result)
+{
+    std::ostringstream output;
+    output << "Accept pending suggestion: " << (result.status.ok ? "OK" : "failed") << "\n";
+    output << "Suggestion: " << result.suggestion.suggestionId << "\n";
+    output << "Status: " << ArtForge::Prompting::ToDisplayName(result.suggestion.status) << "\n";
+    output << "Summary: " << result.status.summary << "\n";
+    for (const auto& diagnostic : result.status.diagnostics) {
+        output << "Diagnostic: " << diagnostic.code << " " << diagnostic.message << "\n";
+    }
+    output << "Current: " << result.currentText << "\n";
+    output << "Proposed: " << result.suggestion.proposedText << "\n";
+    output << "Change set: " << result.edit.edit.changeSet.changeSetId << "\n";
+    output << "State: " << DescribeChangeSetState(result.edit.edit.changeSet.state) << "\n";
+    return output.str();
+}
+
+std::string DescribeAcceptPendingSuggestionSmokeExamples()
+{
+    const auto smokeRoot = std::filesystem::temp_directory_path() / "artforge-accept-suggestion-smoke";
+    std::filesystem::create_directories(smokeRoot);
+
+    struct SmokeCase {
+        std::filesystem::path source;
+        std::filesystem::path target;
+        std::string id;
+        std::string domain;
+        std::string itemType;
+        std::string itemId;
+        int itemIndex;
+        std::string expected;
+        std::string proposed;
+    };
+
+    const std::vector<SmokeCase> cases{
+        {"examples/work-domains/lyrics.afwork.json", smokeRoot / "lyrics.afwork.json", "suggestion.lyrics.smoke", "lyrics", "lyricLine", "line.v1.001", 0, "I mark the door with a quiet name", "I keep the doorway lit tonight"},
+        {"examples/work-domains/visual-art.afwork.json", smokeRoot / "visual-art.afwork.json", "suggestion.visual.smoke", "visualArt", "visualLayer", "viewer.foreground", 0, "Readable silhouette and first focal point", "Lead the eye to the figure before the background."},
+        {"examples/work-domains/script-storyboard.afwork.json", smokeRoot / "script-storyboard.afwork.json", "suggestion.script.smoke", "scriptStoryboard", "scriptBlock", "block.opening.dialogue", 1, "We only get one clean version of this.", "We start before the room understands what changed."},
+    };
+
+    std::ostringstream output;
+    for (const auto& item : cases) {
+        std::filesystem::copy_file(item.source, item.target, std::filesystem::copy_options::overwrite_existing);
+        ArtForge::Prompting::PendingSuggestion suggestion;
+        suggestion.suggestionId = item.id;
+        suggestion.target.workPath = item.target;
+        suggestion.target.domain = item.domain;
+        suggestion.target.itemType = item.itemType;
+        suggestion.target.itemId = item.itemId;
+        suggestion.target.itemIndex = item.itemIndex;
+        suggestion.target.field = EditableFieldForSelection(item.domain, item.itemType);
+        suggestion.proposedText = item.proposed;
+
+        const auto result = AcceptPendingSuggestionCommand({suggestion, item.target, "", item.expected, "codex"});
+        output << "Example: " << item.domain << "\n";
+        output << DescribeAcceptPendingSuggestionResult(result) << "\n";
+    }
+
+    std::filesystem::copy_file(cases.front().source, cases.front().target, std::filesystem::copy_options::overwrite_existing);
+    ArtForge::Prompting::PendingSuggestion changed;
+    changed.suggestionId = "suggestion.changed-current.smoke";
+    changed.target.workPath = cases.front().target;
+    changed.target.domain = "lyrics";
+    changed.target.itemType = "lyricLine";
+    changed.target.itemId = "line.v1.001";
+    changed.target.itemIndex = 0;
+    changed.target.field = "text";
+    changed.proposedText = "This should not apply.";
+    const auto mismatch = AcceptPendingSuggestionCommand({changed, cases.front().target, "", "different expected current text", "codex"});
+    output << "Example: changed current text\n";
+    output << DescribeAcceptPendingSuggestionResult(mismatch);
+    return output.str();
 }
 
 }

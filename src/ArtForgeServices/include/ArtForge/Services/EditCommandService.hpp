@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ArtForge/Services/ServiceResult.hpp"
+#include "ArtForge/Prompting/PromptPackage.hpp"
 
 #include <filesystem>
 #include <string>
@@ -91,6 +92,21 @@ struct SelectedTextEditCommandResult {
     ServiceCommandResult save;
 };
 
+struct AcceptPendingSuggestionRequest {
+    ArtForge::Prompting::PendingSuggestion suggestion;
+    std::filesystem::path workPath;
+    std::string expectedWorkId;
+    std::string expectedCurrentText;
+    std::string actor;
+};
+
+struct AcceptPendingSuggestionResult {
+    ServiceStatus status;
+    ArtForge::Prompting::PendingSuggestion suggestion;
+    std::string currentText;
+    SelectedTextEditCommandResult edit;
+};
+
 EditCommand MakeReplaceTextCommand(
     std::string commandId,
     EditTarget target,
@@ -108,5 +124,8 @@ std::string DescribeEditCommandResult(const EditCommandResult& result);
 std::string DescribeEditCommandSmokeExamples();
 SaveWorkDocumentResult SaveWorkDocumentCommand(const SaveWorkDocumentRequest& request);
 SelectedTextEditCommandResult ApplySelectedTextEditCommand(const SelectedTextEditCommandRequest& request);
+AcceptPendingSuggestionResult AcceptPendingSuggestionCommand(const AcceptPendingSuggestionRequest& request);
+std::string DescribeAcceptPendingSuggestionResult(const AcceptPendingSuggestionResult& result);
+std::string DescribeAcceptPendingSuggestionSmokeExamples();
 
 }
