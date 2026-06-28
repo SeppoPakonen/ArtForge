@@ -67,6 +67,11 @@ enum class ActiveSplitter {
     Bottom,
 };
 
+enum class ShellLayoutInvalidation {
+    GeometryOnly,
+    ImmediateRedraw,
+};
+
 struct StartPageAction {
     std::filesystem::path path;
     ArtForge::Files::RecentScopeType scope{ArtForge::Files::RecentScopeType::Unknown};
@@ -1460,7 +1465,9 @@ HMENU CreateShellMenu()
     return menu;
 }
 
-void LayoutChildren(HWND window)
+void RedrawShellLayout(HWND window, ScopeShellState& state);
+
+void ApplyShellLayout(HWND window, ShellLayoutInvalidation invalidation)
 {
     RECT client{};
     GetClientRect(window, &client);
@@ -1539,6 +1546,10 @@ void LayoutChildren(HWND window)
 
     const auto bottomArea = state->bottomTabs.DisplayArea();
     state->bottomList.Move(bottomArea);
+
+    if (invalidation == ShellLayoutInvalidation::ImmediateRedraw) {
+        RedrawShellLayout(window, *state);
+    }
 }
 
 void RedrawShellLayout(HWND window, ScopeShellState& state)
@@ -1547,6 +1558,9 @@ void RedrawShellLayout(HWND window, ScopeShellState& state)
         return;
     }
 
+    // InvalidateRect marks the parent and Common Controls dirty for ordinary
+    // paint dispatch. RedrawWindow is reserved for interactions that expose
+    // background immediately, such as splitter drags and tab/display changes.
     InvalidateRect(window, nullptr, TRUE);
     const HWND childWindows[] = {
         state.navigationTree,
@@ -1639,8 +1653,7 @@ void UpdateSplitterDrag(HWND window, ScopeShellState& state, POINT point)
         break;
     }
 
-    LayoutChildren(window);
-    RedrawShellLayout(window, state);
+    ApplyShellLayout(window, ShellLayoutInvalidation::ImmediateRedraw);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -1710,11 +1723,11 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         ApplyDefaultGuiFont(state->statusBar);
 
         RefreshCommandBar(*state);
-        LayoutChildren(window);
+        ApplyShellLayout(window, ShellLayoutInvalidation::ImmediateRedraw);
         return 0;
     }
     case WM_SIZE:
-        LayoutChildren(window);
+        ApplyShellLayout(window, ShellLayoutInvalidation::ImmediateRedraw);
         return 0;
     case WM_SETCURSOR: {
         if (LOWORD(lParam) == HTCLIENT) {
@@ -1833,6 +1846,12 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             if (item != nullptr && item->iItem >= 0 && state.openedPath.empty()) {
                 HandleStartPageAction(state, item->iItem);
             }
+            return 0;
+        }
+        if (notification != nullptr
+            && (notification->idFrom == DocumentTabId || notification->idFrom == DetailTabId || notification->idFrom == BottomTabId)
+            && notification->code == TCN_SELCHANGE) {
+            ApplyShellLayout(window, ShellLayoutInvalidation::ImmediateRedraw);
             return 0;
         }
         break;
