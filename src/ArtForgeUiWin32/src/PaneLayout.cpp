@@ -29,6 +29,23 @@ void MovePane(HWND pane, const RECT& rect)
         TRUE);
 }
 
+HDWP DeferMovePane(HDWP batch, HWND pane, const RECT& rect)
+{
+    if (batch == nullptr || pane == nullptr) {
+        return batch;
+    }
+
+    return DeferWindowPos(
+        batch,
+        pane,
+        nullptr,
+        rect.left,
+        rect.top,
+        Width(rect) < 0 ? 0 : Width(rect),
+        Height(rect) < 0 ? 0 : Height(rect),
+        SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
 int MinInt(int left, int right)
 {
     return left < right ? left : right;
@@ -97,6 +114,15 @@ void ApplyThreePaneLayout(
     HWND rightPane,
     const PaneLayoutRectangles& rectangles)
 {
+    auto batch = BeginDeferWindowPos(3);
+    batch = DeferMovePane(batch, leftPane, rectangles.left);
+    batch = DeferMovePane(batch, centerPane, rectangles.center);
+    batch = DeferMovePane(batch, rightPane, rectangles.right);
+
+    if (batch != nullptr && EndDeferWindowPos(batch) != FALSE) {
+        return;
+    }
+
     MovePane(leftPane, rectangles.left);
     MovePane(centerPane, rectangles.center);
     MovePane(rightPane, rectangles.right);

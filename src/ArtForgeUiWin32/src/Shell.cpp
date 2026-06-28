@@ -105,6 +105,11 @@ struct ScopeShellState {
     int restoredBottomTab{0};
 };
 
+int RectWidth(const RECT& rect)
+{
+    return rect.right - rect.left;
+}
+
 std::wstring Utf8ToWide(std::string_view value)
 {
     if (value.empty()) {
@@ -1536,6 +1541,36 @@ void LayoutChildren(HWND window)
     state->bottomList.Move(bottomArea);
 }
 
+void RedrawShellLayout(HWND window, ScopeShellState& state)
+{
+    if (window == nullptr) {
+        return;
+    }
+
+    InvalidateRect(window, nullptr, TRUE);
+    const HWND childWindows[] = {
+        state.navigationTree,
+        state.documentTabs.Window(),
+        state.summaryControl,
+        state.detailTabs.Window(),
+        state.propertyPanel.Window(),
+        state.bottomTabs.Window(),
+        state.bottomList.Window(),
+        state.commandBar.Window(),
+        state.statusBar,
+    };
+    for (const auto child : childWindows) {
+        if (child != nullptr) {
+            InvalidateRect(child, nullptr, TRUE);
+        }
+    }
+    RedrawWindow(
+        window,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_ERASE);
+}
+
 bool ContainsPoint(const RECT& rect, POINT point)
 {
     return point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom;
@@ -1582,7 +1617,7 @@ void UpdateSplitterDrag(HWND window, ScopeShellState& state, POINT point)
 
     const int minimumSideWidth = 160;
     const int minimumBottomHeight = 72;
-    const int availableWidth = client.right - client.left - (state.metrics.margin * 2);
+    const int availableWidth = RectWidth(client) - (state.metrics.margin * 2);
     const int maximumSideWidth = (availableWidth - state.metrics.minimumDocumentWidth - (state.metrics.gap * 2)) / 2;
     const int sideMax = maximumSideWidth > minimumSideWidth ? maximumSideWidth : minimumSideWidth;
 
@@ -1605,6 +1640,7 @@ void UpdateSplitterDrag(HWND window, ScopeShellState& state, POINT point)
     }
 
     LayoutChildren(window);
+    RedrawShellLayout(window, state);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -1729,6 +1765,16 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         if (state != nullptr && state->activeSplitter != ActiveSplitter::None) {
             state->activeSplitter = ActiveSplitter::None;
             ReleaseCapture();
+            RedrawShellLayout(window, *state);
+            return 0;
+        }
+        break;
+    }
+    case WM_CAPTURECHANGED: {
+        const auto state = reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (state != nullptr && reinterpret_cast<HWND>(lParam) != window) {
+            state->activeSplitter = ActiveSplitter::None;
+            RedrawShellLayout(window, *state);
             return 0;
         }
         break;
