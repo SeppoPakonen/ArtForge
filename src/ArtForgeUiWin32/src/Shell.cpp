@@ -1114,10 +1114,10 @@ std::vector<CommandBarButtonSpec> BuildCommandBarButtons(const ScopeShellState& 
     bool canQueueManualAiTask = false;
     bool canAcceptSuggestion = false;
     bool canRejectSuggestion = false;
-    std::wstring saveReason = L"Open a dirty work file to save.";
-    std::wstring promptReason = L"Select a work item row before building a prompt.";
-    std::wstring queueReason = L"Select a work item row before queuing a manual AI task.";
-    std::wstring suggestionReason = L"No pending suggestion is available.";
+    std::wstring saveReason = L"Save is enabled after a work document has unsaved changes.";
+    std::wstring promptReason = L"Build Prompt is enabled after selecting a work item row.";
+    std::wstring queueReason = L"Queue is enabled after selecting a work item row.";
+    std::wstring suggestionReason = L"Accept and Reject are enabled when a pending suggestion is loaded.";
 
     if (IsOpenedWorkFile(state)) {
         const auto presentation = CurrentWorkPresentation(state);
@@ -1135,13 +1135,13 @@ std::vector<CommandBarButtonSpec> BuildCommandBarButtons(const ScopeShellState& 
     }
 
     return {
-        {FileOpenCommand, L"Open", true, true, L"Open a matching ArtForge scope file."},
-        {FileSaveCommand, L"Save", canSave, true, saveReason},
-        {FileRefreshCommand, L"Refresh", true, true, L"Reload current shell state."},
-        {FileBuildPromptCommand, L"Build Prompt", canBuildPrompt, true, promptReason},
-        {FileQueueManualAiTaskCommand, L"Queue Manual AI Task", canQueueManualAiTask, true, queueReason},
-        {FileAcceptSuggestionCommand, L"Accept Suggestion", canAcceptSuggestion, true, suggestionReason},
-        {FileRejectSuggestionCommand, L"Reject Suggestion", canRejectSuggestion, true, suggestionReason},
+        {FileOpenCommand, L"Open", L"File", true, true, L"Open a matching ArtForge scope file."},
+        {FileSaveCommand, L"Save", L"File", canSave, true, saveReason},
+        {FileRefreshCommand, L"Refresh", L"File", true, true, L"Reload current shell state."},
+        {FileBuildPromptCommand, L"Build Prompt", L"AI", canBuildPrompt, true, promptReason},
+        {FileQueueManualAiTaskCommand, L"Queue Manual", L"AI", canQueueManualAiTask, true, queueReason},
+        {FileAcceptSuggestionCommand, L"Accept", L"Suggestion", canAcceptSuggestion, true, suggestionReason},
+        {FileRejectSuggestionCommand, L"Reject", L"Suggestion", canRejectSuggestion, true, suggestionReason},
     };
 }
 

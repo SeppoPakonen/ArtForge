@@ -10,6 +10,7 @@ namespace ArtForge::UiWin32 {
 struct CommandBarButtonSpec {
     int commandId{};
     std::wstring label;
+    std::wstring group;
     bool enabled{true};
     bool visible{true};
     std::wstring disabledReason;
@@ -30,12 +31,20 @@ private:
     struct Button {
         int commandId{};
         std::wstring label;
+        std::wstring group;
         HWND window{};
+    };
+
+    struct GroupDecoration {
+        std::wstring group;
+        HWND labelWindow{};
+        HWND separatorWindow{};
     };
 
     HWND parent_{};
     HWND bar_{};
     std::vector<Button> buttons_;
+    std::vector<GroupDecoration> decorations_;
 };
 
 }

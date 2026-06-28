@@ -11,7 +11,7 @@ struct ShellUiMetrics {
     int navigationWidth{280};
     int inspectorWidth{300};
     int minimumDocumentWidth{220};
-    int toolbarHeight{32};
+    int toolbarHeight{42};
     int tabHeight{28};
     int inspectorRowHeight{24};
     int outputPaneHeight{132};

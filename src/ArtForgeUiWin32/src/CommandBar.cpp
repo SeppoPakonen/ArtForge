@@ -8,7 +8,8 @@ namespace {
 
 int ButtonWidth(std::wstring_view label)
 {
-    return static_cast<int>(label.size()) * 8 + 22;
+    const int width = static_cast<int>(label.size()) * 8 + 26;
+    return width < 72 ? 72 : width;
 }
 
 }
@@ -44,9 +45,58 @@ void CommandBar::SetButtons(const std::vector<CommandBarButtonSpec>& buttons, HI
             DestroyWindow(button.window);
         }
     }
+    for (const auto& decoration : decorations_) {
+        if (decoration.labelWindow != nullptr) {
+            DestroyWindow(decoration.labelWindow);
+        }
+        if (decoration.separatorWindow != nullptr) {
+            DestroyWindow(decoration.separatorWindow);
+        }
+    }
     buttons_.clear();
+    decorations_.clear();
+
+    std::wstring currentGroup;
+    bool firstGroup = true;
 
     for (const auto& spec : buttons) {
+        if (spec.group != currentGroup) {
+            currentGroup = spec.group;
+            HWND labelWindow = nullptr;
+            HWND separatorWindow = nullptr;
+            if (!currentGroup.empty()) {
+                labelWindow = CreateWindowExW(
+                    0,
+                    L"STATIC",
+                    currentGroup.c_str(),
+                    WS_CHILD | WS_VISIBLE | SS_LEFT,
+                    0,
+                    0,
+                    0,
+                    0,
+                    parent_,
+                    nullptr,
+                    instance,
+                    nullptr);
+                separatorWindow = CreateWindowExW(
+                    0,
+                    L"STATIC",
+                    L"",
+                    WS_CHILD | (firstGroup ? 0 : WS_VISIBLE) | SS_ETCHEDVERT,
+                    0,
+                    0,
+                    0,
+                    0,
+                    parent_,
+                    nullptr,
+                    instance,
+                    nullptr);
+                ApplyDefaultGuiFont(labelWindow);
+                decorations_.push_back({currentGroup, labelWindow, separatorWindow});
+            }
+            firstGroup = false;
+        }
+
         auto window = CreateWindowExW(
             0,
             L"BUTTON",
@@ -62,7 +112,7 @@ void CommandBar::SetButtons(const std::vector<CommandBarButtonSpec>& buttons, HI
             nullptr);
         ApplyDefaultGuiFont(window);
         EnableWindow(window, spec.enabled ? TRUE : FALSE);
-        buttons_.push_back({spec.commandId, spec.label, window});
+        buttons_.push_back({spec.commandId, spec.label, spec.group, window});
     }
 }
 
@@ -98,14 +148,31 @@ void CommandBar::Move(const RECT& bounds)
 
     const auto metrics = DefaultShellUiMetrics();
     int left = bounds.left + metrics.gap;
-    const int top = bounds.top + 3;
-    const int height = bounds.bottom - bounds.top - 6;
+    const int groupTop = bounds.top + 2;
+    const int buttonTop = bounds.top + 13;
+    const int buttonHeight = bounds.bottom - buttonTop - 3;
+    std::wstring currentGroup;
+    std::size_t decorationIndex = 0;
     for (const auto& button : buttons_) {
         if (button.window == nullptr || !IsWindowVisible(button.window)) {
             continue;
         }
+        if (button.group != currentGroup) {
+            currentGroup = button.group;
+            if (decorationIndex < decorations_.size()) {
+                const auto& decoration = decorations_[decorationIndex++];
+                if (decoration.separatorWindow != nullptr && IsWindowVisible(decoration.separatorWindow)) {
+                    MoveWindow(decoration.separatorWindow, left, buttonTop, 2, buttonHeight, TRUE);
+                    left += metrics.gap;
+                }
+                if (decoration.labelWindow != nullptr) {
+                    const int labelWidth = static_cast<int>(decoration.group.size()) * 7 + 18;
+                    MoveWindow(decoration.labelWindow, left, groupTop, labelWidth, 11, TRUE);
+                }
+            }
+        }
         const int width = ButtonWidth(button.label);
-        MoveWindow(button.window, left, top, width, height, TRUE);
+        MoveWindow(button.window, left, buttonTop, width, buttonHeight, TRUE);
         left += width + metrics.gap;
     }
 }
