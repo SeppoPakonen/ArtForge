@@ -1104,24 +1104,34 @@ std::vector<CommandBarButtonSpec> BuildCommandBarButtons(const ScopeShellState& 
     bool canQueueManualAiTask = false;
     bool canAcceptSuggestion = false;
     bool canRejectSuggestion = false;
+    std::wstring saveReason = L"Open a dirty work file to save.";
+    std::wstring promptReason = L"Select a work item row before building a prompt.";
+    std::wstring queueReason = L"Select a work item row before queuing a manual AI task.";
+    std::wstring suggestionReason = L"No pending suggestion is available.";
 
     if (IsOpenedWorkFile(state)) {
         const auto presentation = CurrentWorkPresentation(state);
-        canSave = presentation.dirtyState.canSave;
-        canBuildPrompt = presentation.promptPreview.available;
-        canQueueManualAiTask = presentation.manualAiQueue.available;
-        canAcceptSuggestion = false;
-        canRejectSuggestion = false;
+        canSave = presentation.dirtyState.canSave && presentation.dirtyState.isDirty;
+        canBuildPrompt = state.workSelection.hasSelection && presentation.promptPreview.available;
+        canQueueManualAiTask = state.workSelection.hasSelection && presentation.manualAiQueue.available;
+        canAcceptSuggestion = presentation.pendingSuggestionReview.acceptCommand.enabled;
+        canRejectSuggestion = presentation.pendingSuggestionReview.rejectCommand.enabled;
+        saveReason = presentation.dirtyState.isDirty ? L"Save is unavailable." : L"No unsaved work changes.";
+        promptReason = state.workSelection.hasSelection ? L"Prompt preview is unavailable." : L"Select a work item row before building a prompt.";
+        queueReason = state.workSelection.hasSelection ? L"Manual AI queue is unavailable." : L"Select a work item row before queuing a manual AI task.";
+        suggestionReason = presentation.pendingSuggestionReview.status.empty()
+            ? L"No pending suggestion is available."
+            : Utf8ToWide(presentation.pendingSuggestionReview.status);
     }
 
     return {
-        {FileOpenCommand, L"Open", true},
-        {FileSaveCommand, L"Save", canSave || IsOpenedWorkFile(state)},
-        {FileRefreshCommand, L"Refresh", true},
-        {FileBuildPromptCommand, L"Build Prompt", canBuildPrompt},
-        {FileQueueManualAiTaskCommand, L"Queue Manual AI Task", canQueueManualAiTask},
-        {FileAcceptSuggestionCommand, L"Accept Suggestion", canAcceptSuggestion},
-        {FileRejectSuggestionCommand, L"Reject Suggestion", canRejectSuggestion},
+        {FileOpenCommand, L"Open", true, true, L"Open a matching ArtForge scope file."},
+        {FileSaveCommand, L"Save", canSave, true, saveReason},
+        {FileRefreshCommand, L"Refresh", true, true, L"Reload current shell state."},
+        {FileBuildPromptCommand, L"Build Prompt", canBuildPrompt, true, promptReason},
+        {FileQueueManualAiTaskCommand, L"Queue Manual AI Task", canQueueManualAiTask, true, queueReason},
+        {FileAcceptSuggestionCommand, L"Accept Suggestion", canAcceptSuggestion, true, suggestionReason},
+        {FileRejectSuggestionCommand, L"Reject Suggestion", canRejectSuggestion, true, suggestionReason},
     };
 }
 
@@ -1130,6 +1140,19 @@ void RefreshCommandBar(ScopeShellState& state)
     const auto buttons = BuildCommandBarButtons(state);
     for (const auto& button : buttons) {
         state.commandBar.SetButtonEnabled(button.commandId, button.enabled);
+        state.commandBar.SetButtonVisible(button.commandId, button.visible);
+    }
+
+    const auto window = GetParent(state.commandBar.Window());
+    const auto menu = window == nullptr ? nullptr : GetMenu(window);
+    if (menu != nullptr) {
+        for (const auto& button : buttons) {
+            EnableMenuItem(
+                menu,
+                static_cast<UINT>(button.commandId),
+                MF_BYCOMMAND | (button.enabled ? MF_ENABLED : MF_GRAYED));
+        }
+        DrawMenuBar(window);
     }
 }
 
@@ -1650,6 +1673,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             nullptr);
         ApplyDefaultGuiFont(state->statusBar);
 
+        RefreshCommandBar(*state);
         LayoutChildren(window);
         return 0;
     }

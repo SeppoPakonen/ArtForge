@@ -11,6 +11,8 @@ struct CommandBarButtonSpec {
     int commandId{};
     std::wstring label;
     bool enabled{true};
+    bool visible{true};
+    std::wstring disabledReason;
 };
 
 class CommandBar {
@@ -21,6 +23,7 @@ public:
 
     void SetButtons(const std::vector<CommandBarButtonSpec>& buttons, HINSTANCE instance);
     void SetButtonEnabled(int commandId, bool enabled);
+    void SetButtonVisible(int commandId, bool visible);
     void Move(const RECT& bounds);
 
 private:

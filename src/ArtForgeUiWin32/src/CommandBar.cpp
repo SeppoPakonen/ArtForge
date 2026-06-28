@@ -51,7 +51,7 @@ void CommandBar::SetButtons(const std::vector<CommandBarButtonSpec>& buttons, HI
             0,
             L"BUTTON",
             spec.label.c_str(),
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+            WS_CHILD | (spec.visible ? WS_VISIBLE : 0) | WS_TABSTOP | BS_PUSHBUTTON,
             0,
             0,
             0,
@@ -75,6 +75,15 @@ void CommandBar::SetButtonEnabled(int commandId, bool enabled)
     }
 }
 
+void CommandBar::SetButtonVisible(int commandId, bool visible)
+{
+    for (const auto& button : buttons_) {
+        if (button.commandId == commandId && button.window != nullptr) {
+            ShowWindow(button.window, visible ? SW_SHOW : SW_HIDE);
+        }
+    }
+}
+
 void CommandBar::Move(const RECT& bounds)
 {
     if (bar_ != nullptr) {
@@ -92,6 +101,9 @@ void CommandBar::Move(const RECT& bounds)
     const int top = bounds.top + 3;
     const int height = bounds.bottom - bounds.top - 6;
     for (const auto& button : buttons_) {
+        if (button.window == nullptr || !IsWindowVisible(button.window)) {
+            continue;
+        }
         const int width = ButtonWidth(button.label);
         MoveWindow(button.window, left, top, width, height, TRUE);
         left += width + metrics.gap;
