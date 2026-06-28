@@ -41,10 +41,7 @@ void PropertyPanel::Clear()
 
 void PropertyPanel::AddGroup(std::wstring_view title)
 {
-    std::wstring label{L"== "};
-    label += title;
-    label += L" ==";
-    list_.AddRow({label, L""});
+    list_.AddRow({title, L""});
 }
 
 void PropertyPanel::AddProperty(std::wstring_view name, std::wstring_view value)

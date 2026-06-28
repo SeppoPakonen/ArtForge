@@ -708,9 +708,11 @@ void PopulateNavigationTree(HWND tree, const ScopeShellState& state)
         return item;
     };
 
+    const auto explorerRoot = InsertTreeItem(tree, TVI_ROOT, L"Explorer");
     for (const auto& root : model.roots) {
-        renderNode(root, TVI_ROOT, renderNode);
+        renderNode(root, explorerRoot, renderNode);
     }
+    TreeView_Expand(tree, explorerRoot, TVE_EXPAND);
 }
 
 void UpdateFileStatus(ScopeShellState& state)
@@ -838,10 +840,10 @@ void PopulateStartPageActions(ScopeShellState& state)
 {
     state.startActions.clear();
     state.domainList.Clear();
-    state.domainList.AddColumn(0, L"Source", 120);
-    state.domainList.AddColumn(1, L"Name", 220);
-    state.domainList.AddColumn(2, L"Path", 520);
-    state.domainList.AddRow({L"Open", L"Open a file...", L"Use the Open command, or double-click a compatible Recent/Example row."});
+    state.domainList.AddColumn(0, L"Section", 120);
+    state.domainList.AddColumn(1, L"Action", 220);
+    state.domainList.AddColumn(2, L"Detail", 520);
+    state.domainList.AddRow({L"Start", L"Open file", L"Use Open, or double-click a compatible Recent/Example row."});
 
     const auto recent = ArtForge::Files::LoadRecentFiles(ArtForge::Files::DefaultRecentFilesPath());
     for (const auto& entry : recent.entries) {
@@ -872,7 +874,7 @@ void PopulateStartPageActions(ScopeShellState& state)
     }
 
     if (state.startActions.empty()) {
-        state.domainList.AddRow({L"Status", L"No compatible recent files", L"Use Open to choose a matching ArtForge scope file."});
+        state.domainList.AddRow({L"Empty State", L"No compatible recent files", L"Use Open to choose a matching ArtForge scope file."});
     }
 }
 
@@ -891,6 +893,7 @@ void PopulateCentralList(ScopeShellState& state)
 
     state.domainList.AddColumn(0, L"Field", 180);
     state.domainList.AddColumn(1, L"Value", 700);
+    state.domainList.AddRow({L"Section", L"Loaded scope"});
     state.domainList.AddRow({L"Application", state.descriptor.applicationName});
     state.domainList.AddRow({L"Scope type", ArtForge::Core::ToDisplayName(state.descriptor.scope)});
     state.domainList.AddRow({L"Path", state.openedPath});
@@ -901,7 +904,7 @@ void PopulateCentralList(ScopeShellState& state)
 void RebuildDocumentTabs(ScopeShellState& state)
 {
     state.documentTabs.Clear();
-    state.documentTabs.AddTab(0, state.openedPath.empty() ? L"Start" : L"Overview");
+    state.documentTabs.AddTab(0, state.openedPath.empty() ? L"Start Page" : L"Scope Overview");
 
     switch (state.descriptor.scope) {
     case ArtForge::Core::ScopeKind::Solution:
@@ -1691,9 +1694,9 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
 
         state->detailTabs.Create(window, DetailTabId, create->hInstance);
         state->detailTabs.AddTab(0, L"Inspector");
-        state->detailTabs.AddTab(1, L"Prompt preview");
-        state->detailTabs.AddTab(2, L"Suggestion review");
-        state->detailTabs.AddTab(3, L"Provider status");
+        state->detailTabs.AddTab(1, L"Prompt Preview");
+        state->detailTabs.AddTab(2, L"Suggestion Review");
+        state->detailTabs.AddTab(3, L"Provider Status");
 
         state->bottomTabs.Create(window, BottomTabId, create->hInstance);
         state->bottomTabs.AddTab(0, L"Output");
