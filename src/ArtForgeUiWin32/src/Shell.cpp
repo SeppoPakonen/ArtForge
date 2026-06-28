@@ -888,6 +888,40 @@ void PopulateCentralList(ScopeShellState& state)
     state.domainList.AddRow({L"Load detail", state.loadDetailText});
 }
 
+void RebuildDocumentTabs(ScopeShellState& state)
+{
+    state.documentTabs.Clear();
+    state.documentTabs.AddTab(0, state.openedPath.empty() ? L"Start" : L"Overview");
+
+    switch (state.descriptor.scope) {
+    case ArtForge::Core::ScopeKind::Solution:
+        state.documentTabs.AddTab(1, L"Scope Graph");
+        state.documentTabs.AddTab(2, L"Diagnostics");
+        break;
+    case ArtForge::Core::ScopeKind::Artist:
+        state.documentTabs.AddTab(1, L"Artist Profile");
+        state.documentTabs.AddTab(2, L"Works Overview");
+        state.documentTabs.AddTab(3, L"Diagnostics");
+        break;
+    case ArtForge::Core::ScopeKind::Series:
+        state.documentTabs.AddTab(1, L"Series Overview");
+        state.documentTabs.AddTab(2, L"Ordered Works");
+        state.documentTabs.AddTab(3, L"Diagnostics");
+        break;
+    case ArtForge::Core::ScopeKind::WorkItem:
+        state.documentTabs.AddTab(1, L"Work Domain");
+        state.documentTabs.AddTab(2, L"Prompt Preview");
+        state.documentTabs.AddTab(3, L"Suggestion Review");
+        state.documentTabs.AddTab(4, L"Diagnostics");
+        break;
+    case ArtForge::Core::ScopeKind::Fragment:
+        state.documentTabs.AddTab(1, L"Fragment Overview");
+        state.documentTabs.AddTab(2, L"Diagnostics");
+        break;
+    }
+    state.documentTabs.SetSelectedIndex(0);
+}
+
 void AddBottomPanelRow(ScopeShellState& state, std::wstring_view category, std::wstring_view message)
 {
     state.bottomList.AddRow({category, message});
@@ -1200,6 +1234,7 @@ void HandleSaveCommand(ScopeShellState& state)
 void HandleRefreshCommand(ScopeShellState& state)
 {
     UpdateFileStatus(state);
+    RebuildDocumentTabs(state);
     PopulateNavigationTree(state.navigationTree, state);
     PopulateCentralList(state);
     PopulatePropertyPanel(state);
@@ -1254,6 +1289,7 @@ std::optional<std::wstring> ShowOpenFileDialog(HWND owner, const ScopeShellState
 
 void RefreshLoadedState(ScopeShellState& state)
 {
+    RebuildDocumentTabs(state);
     PopulateNavigationTree(state.navigationTree, state);
     state.workSelection = {};
     PopulateCentralList(state);
@@ -1561,13 +1597,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         PopulateNavigationTree(state->navigationTree, *state);
 
         state->documentTabs.Create(window, DocumentTabId, create->hInstance);
-        state->documentTabs.AddTab(0, L"Start");
-        state->documentTabs.AddTab(1, L"Current Scope");
-        if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
-            state->documentTabs.AddTab(2, L"Work Domain");
-            state->documentTabs.AddTab(3, L"Prompt Preview");
-            state->documentTabs.AddTab(4, L"Suggestion Review");
-        }
+        RebuildDocumentTabs(*state);
 
         state->summaryControl = state->domainList.Create(window, SummaryControlId, create->hInstance);
         PopulateCentralList(*state);

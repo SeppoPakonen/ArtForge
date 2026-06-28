@@ -146,6 +146,13 @@ void TabControl::AddTab(int index, std::wstring_view title)
     TabCtrl_InsertItem(window_, index, &item);
 }
 
+void TabControl::Clear()
+{
+    if (window_ != nullptr) {
+        TabCtrl_DeleteAllItems(window_);
+    }
+}
+
 int TabControl::SelectedIndex() const
 {
     if (window_ == nullptr) {
