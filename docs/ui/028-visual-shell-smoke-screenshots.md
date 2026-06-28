@@ -3,6 +3,9 @@
 This checklist validates ArtForge shell credibility without requiring
 pixel-perfect automated GUI tests or adding repeated binary screenshot churn.
 
+For focused redraw and splitter regression checks, use
+`docs/ui/043-shell-redraw-regression-checklist.md` after shell layout changes.
+
 ## Existing Mockup References
 
 The repository already keeps visual mockups under `docs/mockup/`:
