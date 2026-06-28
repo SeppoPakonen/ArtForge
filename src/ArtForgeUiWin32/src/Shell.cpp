@@ -67,6 +67,13 @@ enum class ActiveSplitter {
     Bottom,
 };
 
+struct StartPageAction {
+    std::filesystem::path path;
+    ArtForge::Files::RecentScopeType scope{ArtForge::Files::RecentScopeType::Unknown};
+    std::wstring label;
+    std::wstring source;
+};
+
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
     ShellUiMetrics metrics{DefaultShellUiMetrics()};
@@ -81,6 +88,7 @@ struct ScopeShellState {
     TabControl bottomTabs;
     ListViewReport bottomList;
     PropertyPanel propertyPanel;
+    std::vector<StartPageAction> startActions;
     ArtForge::Presentation::SelectionModel workSelection;
     ArtForge::Presentation::DirtyStateModel dirtyState;
     std::optional<ArtForge::Prompting::AiExecutionRequest> activeManualAiRequest;
@@ -804,15 +812,80 @@ ArtForge::Presentation::WorkAppPresentationModel CurrentWorkPresentation(const S
 void PopulateWorkDomainList(ScopeShellState& state)
 {
     if (state.openedPath.empty()) {
-        ArtForge::Presentation::TableModel table;
-        table.columns = {{"status", "Status"}, {"detail", "Detail"}};
-        table.rows.push_back({"missing-path", {"Work file", "No work file path provided"}});
-        RenderTableModel(state.domainList, table);
         return;
     }
 
     const auto presentation = ArtForge::Presentation::BuildWorkAppPresentationModel(std::filesystem::path{state.openedPath});
     RenderTableModel(state.domainList, presentation.domainTable);
+}
+
+bool IsCompatibleScope(const ScopeShellState& state, ArtForge::Files::RecentScopeType scope)
+{
+    return scope == ToRecentScopeType(state.descriptor.scope);
+}
+
+void PopulateStartPageActions(ScopeShellState& state)
+{
+    state.startActions.clear();
+    state.domainList.Clear();
+    state.domainList.AddColumn(0, L"Source", 120);
+    state.domainList.AddColumn(1, L"Name", 220);
+    state.domainList.AddColumn(2, L"Path", 520);
+    state.domainList.AddRow({L"Open", L"Open a file...", L"Use the Open command or double-click a recent/example row."});
+
+    const auto recent = ArtForge::Files::LoadRecentFiles(ArtForge::Files::DefaultRecentFilesPath());
+    for (const auto& entry : recent.entries) {
+        if (!IsCompatibleScope(state, entry.scope)) {
+            continue;
+        }
+        state.startActions.push_back({
+            entry.path,
+            entry.scope,
+            Utf8ToWide(entry.displayName.empty() ? entry.path.filename().string() : entry.displayName),
+            L"Recent",
+        });
+        state.domainList.AddRow({L"Recent", state.startActions.back().label, entry.path.wstring()});
+    }
+
+    const auto examples = ArtForge::Files::BuildExampleFileIndex(std::filesystem::current_path());
+    for (const auto& entry : examples) {
+        if (!entry.exists || !IsCompatibleScope(state, entry.scope)) {
+            continue;
+        }
+        state.startActions.push_back({
+            entry.path,
+            entry.scope,
+            Utf8ToWide(entry.displayName),
+            L"Example",
+        });
+        state.domainList.AddRow({L"Example", state.startActions.back().label, entry.path.wstring()});
+    }
+
+    if (state.startActions.empty()) {
+        state.domainList.AddRow({L"Status", L"No recent or example files", L"Use Open to choose a matching ArtForge scope file."});
+    }
+}
+
+void PopulateCentralList(ScopeShellState& state)
+{
+    state.domainList.Clear();
+    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem && !state.openedPath.empty()) {
+        PopulateWorkDomainList(state);
+        return;
+    }
+
+    if (state.openedPath.empty()) {
+        PopulateStartPageActions(state);
+        return;
+    }
+
+    state.domainList.AddColumn(0, L"Field", 180);
+    state.domainList.AddColumn(1, L"Value", 700);
+    state.domainList.AddRow({L"Application", state.descriptor.applicationName});
+    state.domainList.AddRow({L"Scope type", ArtForge::Core::ToDisplayName(state.descriptor.scope)});
+    state.domainList.AddRow({L"Path", state.openedPath});
+    state.domainList.AddRow({L"Load status", state.loadStatusText});
+    state.domainList.AddRow({L"Load detail", state.loadDetailText});
 }
 
 void AddBottomPanelRow(ScopeShellState& state, std::wstring_view category, std::wstring_view message)
@@ -1128,13 +1201,7 @@ void HandleRefreshCommand(ScopeShellState& state)
 {
     UpdateFileStatus(state);
     PopulateNavigationTree(state.navigationTree, state);
-    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
-        state.domainList.Clear();
-        PopulateWorkDomainList(state);
-    } else if (state.summaryControl != nullptr) {
-        const auto summary = StartPageText(state);
-        SetWindowTextW(state.summaryControl, summary.c_str());
-    }
+    PopulateCentralList(state);
     PopulatePropertyPanel(state);
     RefreshCommandBar(state);
     SetStatusText(state, L"Shell refreshed.");
@@ -1188,14 +1255,8 @@ std::optional<std::wstring> ShowOpenFileDialog(HWND owner, const ScopeShellState
 void RefreshLoadedState(ScopeShellState& state)
 {
     PopulateNavigationTree(state.navigationTree, state);
-    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
-        state.domainList.Clear();
-        state.workSelection = {};
-        PopulateWorkDomainList(state);
-    } else if (state.summaryControl != nullptr) {
-        const auto summary = StartPageText(state);
-        SetWindowTextW(state.summaryControl, summary.c_str());
-    }
+    state.workSelection = {};
+    PopulateCentralList(state);
     PopulatePropertyPanel(state);
     RefreshCommandBar(state);
     PopulateBottomPanel(state);
@@ -1233,6 +1294,38 @@ void HandleOpenCommand(HWND window, ScopeShellState& state)
     UpdateFileStatus(state);
     RefreshLoadedState(state);
 
+    if (state.loadStatusText == L"File load OK") {
+        UpdateRecentFilesAfterOpen(state);
+        SetStatusText(state, L"File opened.");
+    } else {
+        SetStatusText(state, L"File open failed.");
+    }
+}
+
+void HandleStartPageAction(ScopeShellState& state, int rowIndex)
+{
+    const int actionIndex = rowIndex - 1;
+    if (actionIndex < 0 || static_cast<std::size_t>(actionIndex) >= state.startActions.size()) {
+        SetStatusText(state, L"Use Open to choose a matching ArtForge scope file.");
+        return;
+    }
+
+    const auto action = state.startActions[static_cast<std::size_t>(actionIndex)];
+    if (!IsCompatibleScope(state, action.scope)) {
+        SetStatusText(state, L"Selected entry is not compatible with this scope app.");
+        return;
+    }
+    if (!std::filesystem::exists(action.path)) {
+        state.loadStatusText = L"File load failed";
+        state.loadDetailText = L"Recent/example file is missing: " + action.path.wstring();
+        PopulateBottomPanel(state);
+        SetStatusText(state, L"Selected file is missing.");
+        return;
+    }
+
+    state.openedPath = action.path.wstring();
+    UpdateFileStatus(state);
+    RefreshLoadedState(state);
     if (state.loadStatusText == L"File load OK") {
         UpdateRecentFilesAfterOpen(state);
         SetStatusText(state, L"File opened.");
@@ -1360,17 +1453,7 @@ void LayoutChildren(HWND window)
     };
 
     const auto documentArea = state->documentTabs.DisplayArea();
-    if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
-        state->domainList.Move(documentArea);
-    } else if (state->summaryControl != nullptr) {
-        MoveWindow(
-            state->summaryControl,
-            documentArea.left,
-            documentArea.top,
-            documentArea.right - documentArea.left,
-            documentArea.bottom - documentArea.top,
-            TRUE);
-    }
+    state->domainList.Move(documentArea);
 
     const auto detailArea = state->detailTabs.DisplayArea();
     state->propertyPanel.Move(detailArea);
@@ -1486,26 +1569,8 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
             state->documentTabs.AddTab(4, L"Suggestion Review");
         }
 
-        if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
-            state->summaryControl = state->domainList.Create(window, SummaryControlId, create->hInstance);
-            PopulateWorkDomainList(*state);
-        } else {
-            const auto summary = StartPageText(*state);
-            state->summaryControl = CreateWindowExW(
-                WS_EX_CLIENTEDGE,
-                L"STATIC",
-                summary.c_str(),
-                WS_CHILD | WS_VISIBLE | SS_LEFT,
-                0,
-                0,
-                0,
-                0,
-                window,
-                reinterpret_cast<HMENU>(static_cast<INT_PTR>(SummaryControlId)),
-                create->hInstance,
-                nullptr);
-            ApplyDefaultGuiFont(state->summaryControl);
-        }
+        state->summaryControl = state->domainList.Create(window, SummaryControlId, create->hInstance);
+        PopulateCentralList(*state);
 
         state->detailTabs.Create(window, DetailTabId, create->hInstance);
         state->detailTabs.AddTab(0, L"Inspector");
@@ -1637,11 +1702,21 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         break;
     case WM_NOTIFY: {
         const auto notification = reinterpret_cast<NMHDR*>(lParam);
+        auto& state = *reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
         if (notification != nullptr && notification->idFrom == SummaryControlId && notification->code == LVN_ITEMCHANGED) {
             const auto listChange = reinterpret_cast<NMLISTVIEW*>(lParam);
-            if ((listChange->uChanged & LVIF_STATE) != 0) {
+            if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem
+                && !state.openedPath.empty()
+                && (listChange->uChanged & LVIF_STATE) != 0) {
                 const bool selected = (listChange->uNewState & LVIS_SELECTED) != 0;
-                HandleWorkDomainSelection(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)), selected ? listChange->iItem : -1);
+                HandleWorkDomainSelection(state, selected ? listChange->iItem : -1);
+            }
+            return 0;
+        }
+        if (notification != nullptr && notification->idFrom == SummaryControlId && notification->code == NM_DBLCLK) {
+            const auto item = reinterpret_cast<NMITEMACTIVATE*>(lParam);
+            if (item != nullptr && item->iItem >= 0 && state.openedPath.empty()) {
+                HandleStartPageAction(state, item->iItem);
             }
             return 0;
         }
