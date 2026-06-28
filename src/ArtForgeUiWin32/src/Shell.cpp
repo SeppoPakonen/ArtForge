@@ -17,6 +17,7 @@
 
 #include <commctrl.h>
 #include <shellapi.h>
+#include <windowsx.h>
 
 #pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
@@ -50,6 +51,13 @@ constexpr int DocumentTabId = 2007;
 constexpr int BottomTabId = 2008;
 constexpr int BottomListId = 2009;
 
+enum class ActiveSplitter {
+    None,
+    Left,
+    Right,
+    Bottom,
+};
+
 struct ScopeShellState {
     ArtForge::Core::ScopeShellDescriptor descriptor;
     ShellUiMetrics metrics{DefaultShellUiMetrics()};
@@ -69,6 +77,10 @@ struct ScopeShellState {
     std::optional<ArtForge::Prompting::AiExecutionRequest> activeManualAiRequest;
     CommandBar commandBar;
     HWND statusBar{};
+    ActiveSplitter activeSplitter{ActiveSplitter::None};
+    RECT leftSplitter{};
+    RECT rightSplitter{};
+    RECT bottomSplitter{};
 };
 
 std::wstring Utf8ToWide(std::string_view value)
@@ -744,6 +756,17 @@ void RefreshCommandBar(ScopeShellState& state)
     }
 }
 
+int ClampInt(int value, int minimum, int maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
 void HandleQueueManualAiTaskCommand(ScopeShellState& state)
 {
     if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem || state.openedPath.empty()) {
@@ -981,8 +1004,17 @@ void LayoutChildren(HWND window)
     RECT contentRect = client;
     contentRect.top += state->metrics.toolbarHeight;
 
-    const int outputHeight = state->metrics.outputPaneHeight;
+    const int minimumBottomHeight = 72;
+    const int availableClientHeight = client.bottom - client.top - state->metrics.toolbarHeight - statusHeight - (state->metrics.margin * 2);
+    const int outputHeight = ClampInt(state->metrics.outputPaneHeight, minimumBottomHeight, availableClientHeight / 2);
+    state->metrics.outputPaneHeight = outputHeight;
     const int outputTop = client.bottom - statusHeight - outputHeight;
+    state->bottomSplitter = {
+        client.left + state->metrics.margin,
+        outputTop - state->metrics.splitterWidth,
+        client.right - state->metrics.margin,
+        outputTop,
+    };
     RECT bottomPanelRect{
         client.left + state->metrics.margin,
         outputTop,
@@ -1000,6 +1032,19 @@ void LayoutChildren(HWND window)
         state->documentTabs.Window(),
         state->detailTabs.Window(),
         rectangles);
+
+    state->leftSplitter = {
+        rectangles.left.right,
+        rectangles.left.top,
+        rectangles.center.left,
+        rectangles.left.bottom,
+    };
+    state->rightSplitter = {
+        rectangles.center.right,
+        rectangles.right.top,
+        rectangles.right.left,
+        rectangles.right.bottom,
+    };
 
     const auto documentArea = state->documentTabs.DisplayArea();
     if (state->descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
@@ -1019,6 +1064,77 @@ void LayoutChildren(HWND window)
 
     const auto bottomArea = state->bottomTabs.DisplayArea();
     state->bottomList.Move(bottomArea);
+}
+
+bool ContainsPoint(const RECT& rect, POINT point)
+{
+    return point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom;
+}
+
+ActiveSplitter HitTestSplitter(const ScopeShellState& state, POINT point)
+{
+    if (ContainsPoint(state.leftSplitter, point)) {
+        return ActiveSplitter::Left;
+    }
+    if (ContainsPoint(state.rightSplitter, point)) {
+        return ActiveSplitter::Right;
+    }
+    if (ContainsPoint(state.bottomSplitter, point)) {
+        return ActiveSplitter::Bottom;
+    }
+    return ActiveSplitter::None;
+}
+
+void SetSplitterCursor(ActiveSplitter splitter)
+{
+    if (splitter == ActiveSplitter::Bottom) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZENS));
+        return;
+    }
+    if (splitter == ActiveSplitter::Left || splitter == ActiveSplitter::Right) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
+        return;
+    }
+    SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+}
+
+void UpdateSplitterDrag(HWND window, ScopeShellState& state, POINT point)
+{
+    RECT client{};
+    GetClientRect(window, &client);
+
+    int statusHeight = 0;
+    if (state.statusBar != nullptr) {
+        RECT statusRect{};
+        GetWindowRect(state.statusBar, &statusRect);
+        statusHeight = statusRect.bottom - statusRect.top;
+    }
+
+    const int minimumSideWidth = 160;
+    const int minimumBottomHeight = 72;
+    const int availableWidth = client.right - client.left - (state.metrics.margin * 2);
+    const int maximumSideWidth = (availableWidth - state.metrics.minimumDocumentWidth - (state.metrics.gap * 2)) / 2;
+    const int sideMax = maximumSideWidth > minimumSideWidth ? maximumSideWidth : minimumSideWidth;
+
+    switch (state.activeSplitter) {
+    case ActiveSplitter::Left:
+        state.metrics.navigationWidth = ClampInt(point.x - client.left - state.metrics.margin, minimumSideWidth, sideMax);
+        break;
+    case ActiveSplitter::Right:
+        state.metrics.inspectorWidth = ClampInt(client.right - state.metrics.margin - point.x, minimumSideWidth, sideMax);
+        break;
+    case ActiveSplitter::Bottom: {
+        const int bottomEdge = client.bottom - statusHeight;
+        const int availableHeight = bottomEdge - state.metrics.toolbarHeight - (state.metrics.margin * 2);
+        const int bottomMax = availableHeight > minimumBottomHeight ? availableHeight / 2 : minimumBottomHeight;
+        state.metrics.outputPaneHeight = ClampInt(bottomEdge - point.y, minimumBottomHeight, bottomMax);
+        break;
+    }
+    case ActiveSplitter::None:
+        break;
+    }
+
+    LayoutChildren(window);
 }
 
 LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
@@ -1116,6 +1232,59 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
     case WM_SIZE:
         LayoutChildren(window);
         return 0;
+    case WM_SETCURSOR: {
+        if (LOWORD(lParam) == HTCLIENT) {
+            const auto state = reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+            if (state != nullptr) {
+                POINT point{};
+                GetCursorPos(&point);
+                ScreenToClient(window, &point);
+                const auto splitter = state->activeSplitter != ActiveSplitter::None
+                    ? state->activeSplitter
+                    : HitTestSplitter(*state, point);
+                if (splitter != ActiveSplitter::None) {
+                    SetSplitterCursor(splitter);
+                    return TRUE;
+                }
+            }
+        }
+        break;
+    }
+    case WM_LBUTTONDOWN: {
+        const auto state = reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (state != nullptr) {
+            POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+            state->activeSplitter = HitTestSplitter(*state, point);
+            if (state->activeSplitter != ActiveSplitter::None) {
+                SetCapture(window);
+                SetSplitterCursor(state->activeSplitter);
+                return 0;
+            }
+        }
+        break;
+    }
+    case WM_MOUSEMOVE: {
+        const auto state = reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (state != nullptr) {
+            POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+            if (state->activeSplitter != ActiveSplitter::None) {
+                UpdateSplitterDrag(window, *state, point);
+                SetSplitterCursor(state->activeSplitter);
+                return 0;
+            }
+            SetSplitterCursor(HitTestSplitter(*state, point));
+        }
+        break;
+    }
+    case WM_LBUTTONUP: {
+        const auto state = reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (state != nullptr && state->activeSplitter != ActiveSplitter::None) {
+            state->activeSplitter = ActiveSplitter::None;
+            ReleaseCapture();
+            return 0;
+        }
+        break;
+    }
     case WM_TIMER:
         if (wParam == ManualQueuePollTimerId) {
             HandleManualQueuePollTimer(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)), window);
