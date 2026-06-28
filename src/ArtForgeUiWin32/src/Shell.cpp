@@ -7,6 +7,7 @@
 #include "ArtForge/UiWin32/UiMetrics.hpp"
 
 #include "ArtForge/Files/ProjectGraph.hpp"
+#include "ArtForge/Files/RecentFiles.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
 #include "ArtForge/Presentation/ScopeNavigationAdapter.hpp"
@@ -16,12 +17,15 @@
 #include "ArtForge/Services/PromptCommandService.hpp"
 
 #include <commctrl.h>
+#include <commdlg.h>
 #include <shellapi.h>
 #include <windowsx.h>
 
 #pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#pragma comment(lib, "Comdlg32.lib")
 
 #include <charconv>
+#include <chrono>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
@@ -30,6 +34,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <ctime>
 
 namespace ArtForge::UiWin32 {
 
@@ -429,6 +434,51 @@ ArtForge::History::HistoryScope ToHistoryScope(ArtForge::Core::ScopeKind scope)
     }
 
     return ArtForge::History::HistoryScope::Fragment;
+}
+
+ArtForge::Files::RecentScopeType ToRecentScopeType(ArtForge::Core::ScopeKind scope)
+{
+    switch (scope) {
+    case ArtForge::Core::ScopeKind::Solution:
+        return ArtForge::Files::RecentScopeType::Solution;
+    case ArtForge::Core::ScopeKind::Artist:
+        return ArtForge::Files::RecentScopeType::Artist;
+    case ArtForge::Core::ScopeKind::Series:
+        return ArtForge::Files::RecentScopeType::Series;
+    case ArtForge::Core::ScopeKind::WorkItem:
+        return ArtForge::Files::RecentScopeType::Work;
+    case ArtForge::Core::ScopeKind::Fragment:
+        return ArtForge::Files::RecentScopeType::Unknown;
+    }
+    return ArtForge::Files::RecentScopeType::Unknown;
+}
+
+const wchar_t* OpenDialogFilter(ArtForge::Core::ScopeKind scope)
+{
+    switch (scope) {
+    case ArtForge::Core::ScopeKind::Solution:
+        return L"ArtForge solution files (*.afsolution.json)\0*.afsolution.json\0JSON files (*.json)\0*.json\0All files (*.*)\0*.*\0";
+    case ArtForge::Core::ScopeKind::Artist:
+        return L"ArtForge artist files (*.afartist.json)\0*.afartist.json\0JSON files (*.json)\0*.json\0All files (*.*)\0*.*\0";
+    case ArtForge::Core::ScopeKind::Series:
+        return L"ArtForge series files (*.afseries.json)\0*.afseries.json\0JSON files (*.json)\0*.json\0All files (*.*)\0*.*\0";
+    case ArtForge::Core::ScopeKind::WorkItem:
+        return L"ArtForge work files (*.afwork.json)\0*.afwork.json\0JSON files (*.json)\0*.json\0All files (*.*)\0*.*\0";
+    case ArtForge::Core::ScopeKind::Fragment:
+        return L"ArtForge files (*.json)\0*.json\0All files (*.*)\0*.*\0";
+    }
+    return L"ArtForge files (*.json)\0*.json\0All files (*.*)\0*.*\0";
+}
+
+std::string CurrentUtcTimestamp()
+{
+    const auto now = std::chrono::system_clock::now();
+    const auto time = std::chrono::system_clock::to_time_t(now);
+    std::tm utc{};
+    gmtime_s(&utc, &time);
+    char buffer[32]{};
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    return buffer;
 }
 
 void RecordFileOperation(
@@ -943,7 +993,7 @@ std::vector<CommandBarButtonSpec> BuildCommandBarButtons(const ScopeShellState& 
     }
 
     return {
-        {FileOpenCommand, L"Open", false},
+        {FileOpenCommand, L"Open", true},
         {FileSaveCommand, L"Save", canSave || IsOpenedWorkFile(state)},
         {FileRefreshCommand, L"Refresh", true},
         {FileBuildPromptCommand, L"Build Prompt", canBuildPrompt},
@@ -1117,9 +1167,78 @@ void HandleBuildPromptCommand(ScopeShellState& state)
         result.command.status.ok ? "preview-ready" : "preview-failed");
 }
 
-void HandleOpenCommand(ScopeShellState& state)
+std::optional<std::wstring> ShowOpenFileDialog(HWND owner, const ScopeShellState& state)
 {
-    SetStatusText(state, L"Open command placeholder: launch with a scope file path for now.");
+    wchar_t pathBuffer[MAX_PATH]{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = owner;
+    dialog.lpstrFilter = OpenDialogFilter(state.descriptor.scope);
+    dialog.lpstrFile = pathBuffer;
+    dialog.nMaxFile = MAX_PATH;
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    dialog.lpstrTitle = L"Open ArtForge scope file";
+
+    if (GetOpenFileNameW(&dialog) == TRUE) {
+        return std::wstring{pathBuffer};
+    }
+    return std::nullopt;
+}
+
+void RefreshLoadedState(ScopeShellState& state)
+{
+    PopulateNavigationTree(state.navigationTree, state);
+    if (state.descriptor.scope == ArtForge::Core::ScopeKind::WorkItem) {
+        state.domainList.Clear();
+        state.workSelection = {};
+        PopulateWorkDomainList(state);
+    } else if (state.summaryControl != nullptr) {
+        const auto summary = StartPageText(state);
+        SetWindowTextW(state.summaryControl, summary.c_str());
+    }
+    PopulatePropertyPanel(state);
+    RefreshCommandBar(state);
+    PopulateBottomPanel(state);
+}
+
+void UpdateRecentFilesAfterOpen(ScopeShellState& state)
+{
+    const auto recentPath = ArtForge::Files::DefaultRecentFilesPath();
+    auto recent = ArtForge::Files::LoadRecentFiles(recentPath);
+    auto entries = ArtForge::Files::AddOrPromoteRecentFile(
+        std::move(recent.entries),
+        {
+            std::filesystem::absolute(std::filesystem::path{state.openedPath}),
+            ToRecentScopeType(state.descriptor.scope),
+            std::filesystem::path{state.openedPath}.filename().string(),
+            CurrentUtcTimestamp(),
+            true,
+        });
+    const auto save = ArtForge::Files::SaveRecentFiles(recentPath, entries);
+    if (!save.ok) {
+        const auto detail = save.diagnostics.empty() ? std::string{"Recent files could not be saved."} : save.diagnostics.front();
+        state.loadDetailText = Utf8ToWide(detail);
+    }
+}
+
+void HandleOpenCommand(HWND window, ScopeShellState& state)
+{
+    const auto path = ShowOpenFileDialog(window, state);
+    if (!path) {
+        SetStatusText(state, L"Open canceled.");
+        return;
+    }
+
+    state.openedPath = *path;
+    UpdateFileStatus(state);
+    RefreshLoadedState(state);
+
+    if (state.loadStatusText == L"File load OK") {
+        UpdateRecentFilesAfterOpen(state);
+        SetStatusText(state, L"File opened.");
+    } else {
+        SetStatusText(state, L"File open failed.");
+    }
 }
 
 void HandleSuggestionCommandPlaceholder(ScopeShellState& state)
@@ -1157,7 +1276,7 @@ HMENU CreateShellMenu()
 {
     const auto menu = CreateMenu();
     const auto fileMenu = CreatePopupMenu();
-    AppendMenuW(fileMenu, MF_STRING | MF_GRAYED, FileOpenCommand, L"Open");
+    AppendMenuW(fileMenu, MF_STRING, FileOpenCommand, L"Open");
     AppendMenuW(fileMenu, MF_STRING, FileSaveCommand, L"Save");
     AppendMenuW(fileMenu, MF_STRING, FileRefreshCommand, L"Refresh");
     AppendMenuW(fileMenu, MF_STRING, FileBuildPromptCommand, L"Build Prompt");
@@ -1488,7 +1607,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         break;
     case WM_COMMAND:
         if (LOWORD(wParam) == FileOpenCommand) {
-            HandleOpenCommand(*reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
+            HandleOpenCommand(window, *reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA)));
             return 0;
         }
         if (LOWORD(wParam) == FileSaveCommand) {
