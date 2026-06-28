@@ -21,10 +21,14 @@
 
 #pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
+#include <charconv>
+#include <cctype>
 #include <cstdlib>
+#include <fstream>
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 
 namespace ArtForge::UiWin32 {
@@ -81,6 +85,11 @@ struct ScopeShellState {
     RECT leftSplitter{};
     RECT rightSplitter{};
     RECT bottomSplitter{};
+    std::filesystem::path settingsPath;
+    RECT restoredWindowRect{CW_USEDEFAULT, CW_USEDEFAULT, 720, 420};
+    bool hasRestoredWindowRect{false};
+    bool restoreMaximized{false};
+    int restoredBottomTab{0};
 };
 
 std::wstring Utf8ToWide(std::string_view value)
@@ -142,12 +151,208 @@ std::wstring FirstCommandLinePath(wchar_t* commandLine)
     return path;
 }
 
+int ClampInt(int value, int minimum, int maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
 std::wstring WindowTitle(const ArtForge::Core::ScopeShellDescriptor& descriptor)
 {
     std::wstring title{descriptor.applicationName};
     title += L" - ";
     title += descriptor.expectedScope;
     return title;
+}
+
+std::string WideToUtf8(std::wstring_view value)
+{
+    if (value.empty()) {
+        return {};
+    }
+
+    const auto requiredLength = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr);
+    if (requiredLength <= 0) {
+        return WideToNarrowAscii(value);
+    }
+
+    std::string converted(static_cast<std::size_t>(requiredLength), '\0');
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        converted.data(),
+        requiredLength,
+        nullptr,
+        nullptr);
+    return converted;
+}
+
+std::wstring SanitizedFileStem(std::wstring_view value)
+{
+    std::wstring stem;
+    for (const auto character : value) {
+        if ((character >= L'a' && character <= L'z')
+            || (character >= L'A' && character <= L'Z')
+            || (character >= L'0' && character <= L'9')
+            || character == L'-'
+            || character == L'_') {
+            stem.push_back(character);
+        } else if (character == L' ') {
+            stem.push_back(L'-');
+        }
+    }
+    return stem.empty() ? L"shell" : stem;
+}
+
+std::filesystem::path UserShellLayoutSettingsPath(const ArtForge::Core::ScopeShellDescriptor& descriptor)
+{
+    wchar_t* appData = nullptr;
+    std::size_t appDataLength = 0;
+    if (_wdupenv_s(&appData, &appDataLength, L"APPDATA") != 0 || appData == nullptr) {
+        return {};
+    }
+
+    std::filesystem::path path{appData};
+    free(appData);
+    path /= L"ArtForge";
+    path /= L"settings";
+    path /= L"shell-layout-" + SanitizedFileStem(descriptor.applicationName) + L".json";
+    return path;
+}
+
+std::optional<int> ReadIntSetting(std::string_view json, std::string_view key)
+{
+    const std::string field = "\"" + std::string{key} + "\"";
+    const auto fieldPosition = json.find(field);
+    if (fieldPosition == std::string_view::npos) {
+        return std::nullopt;
+    }
+    const auto colonPosition = json.find(':', fieldPosition + field.size());
+    if (colonPosition == std::string_view::npos) {
+        return std::nullopt;
+    }
+    auto valuePosition = colonPosition + 1;
+    while (valuePosition < json.size() && std::isspace(static_cast<unsigned char>(json[valuePosition])) != 0) {
+        ++valuePosition;
+    }
+    auto endPosition = valuePosition;
+    if (endPosition < json.size() && json[endPosition] == '-') {
+        ++endPosition;
+    }
+    while (endPosition < json.size() && std::isdigit(static_cast<unsigned char>(json[endPosition])) != 0) {
+        ++endPosition;
+    }
+    if (endPosition == valuePosition) {
+        return std::nullopt;
+    }
+    int value = 0;
+    const auto result = std::from_chars(json.data() + valuePosition, json.data() + endPosition, value);
+    if (result.ec != std::errc{}) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+bool ReadBoolSetting(std::string_view json, std::string_view key)
+{
+    const std::string field = "\"" + std::string{key} + "\"";
+    const auto fieldPosition = json.find(field);
+    if (fieldPosition == std::string_view::npos) {
+        return false;
+    }
+    const auto colonPosition = json.find(':', fieldPosition + field.size());
+    if (colonPosition == std::string_view::npos) {
+        return false;
+    }
+    auto valuePosition = colonPosition + 1;
+    while (valuePosition < json.size() && std::isspace(static_cast<unsigned char>(json[valuePosition])) != 0) {
+        ++valuePosition;
+    }
+    return json.substr(valuePosition, 4) == "true";
+}
+
+void LoadShellLayoutSettings(ScopeShellState& state)
+{
+    state.settingsPath = UserShellLayoutSettingsPath(state.descriptor);
+    if (state.settingsPath.empty()) {
+        return;
+    }
+
+    std::ifstream input{state.settingsPath};
+    if (!input) {
+        return;
+    }
+
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    const auto json = buffer.str();
+
+    state.metrics.navigationWidth = ClampInt(ReadIntSetting(json, "explorerWidth").value_or(state.metrics.navigationWidth), 160, 700);
+    state.metrics.inspectorWidth = ClampInt(ReadIntSetting(json, "inspectorWidth").value_or(state.metrics.inspectorWidth), 160, 700);
+    state.metrics.outputPaneHeight = ClampInt(ReadIntSetting(json, "bottomPanelHeight").value_or(state.metrics.outputPaneHeight), 72, 400);
+    state.restoredBottomTab = ClampInt(ReadIntSetting(json, "selectedBottomTab").value_or(0), 0, 3);
+    state.restoreMaximized = ReadBoolSetting(json, "maximized");
+
+    const auto left = ReadIntSetting(json, "windowLeft");
+    const auto top = ReadIntSetting(json, "windowTop");
+    const auto width = ReadIntSetting(json, "windowWidth");
+    const auto height = ReadIntSetting(json, "windowHeight");
+    if (left && top && width && height && *width >= 480 && *height >= 320) {
+        state.restoredWindowRect = {*left, *top, *width, *height};
+        state.hasRestoredWindowRect = true;
+    }
+}
+
+void SaveShellLayoutSettings(HWND window, const ScopeShellState& state)
+{
+    if (state.settingsPath.empty()) {
+        return;
+    }
+
+    std::error_code error;
+    std::filesystem::create_directories(state.settingsPath.parent_path(), error);
+    if (error) {
+        return;
+    }
+
+    WINDOWPLACEMENT placement{};
+    placement.length = sizeof(placement);
+    GetWindowPlacement(window, &placement);
+
+    RECT normal = placement.rcNormalPosition;
+    std::ofstream output{state.settingsPath, std::ios::trunc};
+    if (!output) {
+        return;
+    }
+
+    output << "{\n";
+    output << "  \"format\": \"artforge.user.shell-layout\",\n";
+    output << "  \"application\": \"" << WideToUtf8(state.descriptor.applicationName) << "\",\n";
+    output << "  \"windowLeft\": " << normal.left << ",\n";
+    output << "  \"windowTop\": " << normal.top << ",\n";
+    output << "  \"windowWidth\": " << (normal.right - normal.left) << ",\n";
+    output << "  \"windowHeight\": " << (normal.bottom - normal.top) << ",\n";
+    output << "  \"maximized\": " << (placement.showCmd == SW_SHOWMAXIMIZED ? "true" : "false") << ",\n";
+    output << "  \"explorerWidth\": " << state.metrics.navigationWidth << ",\n";
+    output << "  \"inspectorWidth\": " << state.metrics.inspectorWidth << ",\n";
+    output << "  \"bottomPanelHeight\": " << state.metrics.outputPaneHeight << ",\n";
+    output << "  \"selectedBottomTab\": " << state.bottomTabs.SelectedIndex() << "\n";
+    output << "}\n";
 }
 
 std::wstring FirstIssueText(const ArtForge::Files::ScopeFileLoadStatus& status)
@@ -756,17 +961,6 @@ void RefreshCommandBar(ScopeShellState& state)
     }
 }
 
-int ClampInt(int value, int minimum, int maximum)
-{
-    if (value < minimum) {
-        return minimum;
-    }
-    if (value > maximum) {
-        return maximum;
-    }
-    return value;
-}
-
 void HandleQueueManualAiTaskCommand(ScopeShellState& state)
 {
     if (state.descriptor.scope != ArtForge::Core::ScopeKind::WorkItem || state.openedPath.empty()) {
@@ -1205,6 +1399,7 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         state->bottomTabs.AddTab(1, L"Tasks");
         state->bottomTabs.AddTab(2, L"Provider");
         state->bottomTabs.AddTab(3, L"History");
+        state->bottomTabs.SetSelectedIndex(state->restoredBottomTab);
         state->bottomList.Create(window, BottomListId, create->hInstance);
         PopulateBottomPanel(*state);
 
@@ -1333,9 +1528,14 @@ LRESULT CALLBACK ShellWindowProc(HWND window, UINT message, WPARAM wParam, LPARA
         }
         break;
     }
-    case WM_DESTROY:
+    case WM_DESTROY: {
+        const auto state = reinterpret_cast<ScopeShellState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (state != nullptr) {
+            SaveShellLayoutSettings(window, *state);
+        }
         PostQuitMessage(0);
         return 0;
+    }
     }
 
     return DefWindowProcW(window, message, wParam, lParam);
@@ -1359,22 +1559,26 @@ ATOM RegisterShellWindowClass(HINSTANCE instance)
 HWND CreateShellWindow(HINSTANCE instance, int showCommand, ScopeShellState& state)
 {
     const auto title = WindowTitle(state.descriptor);
+    const int x = state.hasRestoredWindowRect ? state.restoredWindowRect.left : CW_USEDEFAULT;
+    const int y = state.hasRestoredWindowRect ? state.restoredWindowRect.top : CW_USEDEFAULT;
+    const int width = state.hasRestoredWindowRect ? state.restoredWindowRect.right : 720;
+    const int height = state.hasRestoredWindowRect ? state.restoredWindowRect.bottom : 420;
     const auto window = CreateWindowExW(
         0,
         ShellWindowClassName,
         title.c_str(),
         WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        720,
-        420,
+        x,
+        y,
+        width,
+        height,
         nullptr,
         CreateShellMenu(),
         instance,
         &state);
 
     if (window != nullptr) {
-        ShowWindow(window, showCommand);
+        ShowWindow(window, state.restoreMaximized ? SW_SHOWMAXIMIZED : showCommand);
         UpdateWindow(window);
     }
 
@@ -1409,6 +1613,7 @@ int RunScopeShell(
         DefaultShellUiMetrics(),
         FirstCommandLinePath(commandLine),
     };
+    LoadShellLayoutSettings(state);
     UpdateFileStatus(state);
 
     if (CreateShellWindow(instance, showCommand, state) == nullptr) {

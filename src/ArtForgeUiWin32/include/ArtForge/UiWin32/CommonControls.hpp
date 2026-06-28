@@ -32,6 +32,7 @@ public:
 
     void AddTab(int index, std::wstring_view title);
     [[nodiscard]] int SelectedIndex() const;
+    void SetSelectedIndex(int index);
     void Move(const RECT& bounds);
     [[nodiscard]] RECT DisplayArea() const;
 

@@ -154,6 +154,13 @@ int TabControl::SelectedIndex() const
     return TabCtrl_GetCurSel(window_);
 }
 
+void TabControl::SetSelectedIndex(int index)
+{
+    if (window_ != nullptr) {
+        TabCtrl_SetCurSel(window_, index);
+    }
+}
+
 void TabControl::Move(const RECT& bounds)
 {
     if (window_ != nullptr) {
