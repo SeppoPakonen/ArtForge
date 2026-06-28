@@ -922,42 +922,57 @@ void RebuildDocumentTabs(ScopeShellState& state)
     state.documentTabs.SetSelectedIndex(0);
 }
 
-void AddBottomPanelRow(ScopeShellState& state, std::wstring_view category, std::wstring_view message)
+void AddBottomPanelRow(
+    ScopeShellState& state,
+    std::wstring_view severity,
+    std::wstring_view category,
+    std::wstring_view message)
 {
-    state.bottomList.AddRow({category, message});
+    state.bottomList.AddRow({severity, category, message});
 }
 
 void PopulateBottomPanel(ScopeShellState& state)
 {
     state.bottomList.Clear();
-    state.bottomList.AddColumn(0, L"Area", 140);
-    state.bottomList.AddColumn(1, L"Message", 720);
+    state.bottomList.AddColumn(0, L"Severity", 90);
+    state.bottomList.AddColumn(1, L"Area", 140);
+    state.bottomList.AddColumn(2, L"Message", 720);
 
-    AddBottomPanelRow(state, L"Output", state.loadStatusText);
-    AddBottomPanelRow(state, L"Output", state.loadDetailText);
-    AddBottomPanelRow(state, L"Tasks", IsOpenedWorkFile(state) ? L"Work commands available through selection state." : L"Open a work file to enable work-item tasks.");
+    const bool loadFailed = state.loadStatusText.find(L"failed") != std::wstring::npos;
+    AddBottomPanelRow(state, loadFailed ? L"Error" : L"Info", L"Output", state.loadStatusText);
+    AddBottomPanelRow(state, loadFailed ? L"Error" : L"Info", L"Output", state.loadDetailText);
+    if (state.openedPath.empty()) {
+        AddBottomPanelRow(state, L"Info", L"Tasks", L"Open a matching scope file or choose a Recent/Example row.");
+    } else if (loadFailed) {
+        AddBottomPanelRow(state, L"Error", L"Tasks", L"Resolve the file load or schema diagnostic before editing.");
+    } else {
+        AddBottomPanelRow(state, L"Info", L"Tasks", IsOpenedWorkFile(state) ? L"Work commands available through selection state." : L"Scope file loaded read-only.");
+    }
 
     if (IsOpenedWorkFile(state)) {
         const auto presentation = CurrentWorkPresentation(state);
-        AddBottomPanelRow(state, L"Tasks", Utf8ToWide(presentation.manualAiQueue.status));
+        AddBottomPanelRow(state, L"Info", L"Tasks", Utf8ToWide(presentation.manualAiQueue.status));
         for (const auto& diagnostic : presentation.manualAiQueue.diagnostics) {
-            AddBottomPanelRow(state, L"Tasks", Utf8ToWide(diagnostic));
+            AddBottomPanelRow(state, L"Warning", L"Tasks", Utf8ToWide(diagnostic));
         }
         for (const auto& provider : presentation.providerStatus.providers) {
+            const bool configured = provider.configurationStatus.find("configured") != std::string::npos
+                && provider.configurationStatus.find("notConfigured") == std::string::npos;
             AddBottomPanelRow(
                 state,
+                configured ? L"Info" : L"Warning",
                 L"Provider",
                 Utf8ToWide(provider.providerKind + ": " + provider.configurationStatus + " / " + provider.requestStatus));
             if (!provider.lastDiagnostic.empty()) {
-                AddBottomPanelRow(state, L"Provider", Utf8ToWide(provider.lastDiagnostic));
+                AddBottomPanelRow(state, L"Warning", L"Provider", Utf8ToWide(provider.lastDiagnostic));
             }
         }
-        AddBottomPanelRow(state, L"History", state.openedPath.empty() ? L"No history path." : L"File operation history records are appended next to the opened scope when actions run.");
+        AddBottomPanelRow(state, L"Info", L"History", state.openedPath.empty() ? L"No history path." : L"File operation history records are appended next to the opened scope when actions run.");
         return;
     }
 
-    AddBottomPanelRow(state, L"Provider", L"Provider status is available in WorkApp scope.");
-    AddBottomPanelRow(state, L"History", state.openedPath.empty() ? L"No opened file." : L"File load history was recorded for this scope.");
+    AddBottomPanelRow(state, L"Info", L"Provider", L"Provider status is available in WorkApp scope.");
+    AddBottomPanelRow(state, L"Info", L"History", state.openedPath.empty() ? L"No opened file." : L"File load history was recorded for this scope.");
 }
 
 void PopulatePropertyPanel(ScopeShellState& state)
