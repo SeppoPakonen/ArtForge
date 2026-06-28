@@ -706,8 +706,8 @@ void PopulateNavigationTree(HWND tree, const ScopeShellState& state)
 void UpdateFileStatus(ScopeShellState& state)
 {
     if (state.openedPath.empty()) {
-        state.loadStatusText = L"No file path provided";
-        state.loadDetailText = L"Launch with a scope file path to load status.";
+        state.loadStatusText = L"No file loaded";
+        state.loadDetailText = L"Use Open or choose a compatible Recent/Example row to load a scope file.";
         return;
     }
 
@@ -831,7 +831,7 @@ void PopulateStartPageActions(ScopeShellState& state)
     state.domainList.AddColumn(0, L"Source", 120);
     state.domainList.AddColumn(1, L"Name", 220);
     state.domainList.AddColumn(2, L"Path", 520);
-    state.domainList.AddRow({L"Open", L"Open a file...", L"Use the Open command or double-click a recent/example row."});
+    state.domainList.AddRow({L"Open", L"Open a file...", L"Use the Open command, or double-click a compatible Recent/Example row."});
 
     const auto recent = ArtForge::Files::LoadRecentFiles(ArtForge::Files::DefaultRecentFilesPath());
     for (const auto& entry : recent.entries) {
@@ -862,7 +862,7 @@ void PopulateStartPageActions(ScopeShellState& state)
     }
 
     if (state.startActions.empty()) {
-        state.domainList.AddRow({L"Status", L"No recent or example files", L"Use Open to choose a matching ArtForge scope file."});
+        state.domainList.AddRow({L"Status", L"No compatible recent files", L"Use Open to choose a matching ArtForge scope file."});
     }
 }
 
@@ -971,7 +971,7 @@ void PopulateBottomPanel(ScopeShellState& state)
         return;
     }
 
-    AddBottomPanelRow(state, L"Info", L"Provider", L"Provider status is available in WorkApp scope.");
+        AddBottomPanelRow(state, L"Info", L"Provider", L"Provider status appears here when a work file is loaded.");
     AddBottomPanelRow(state, L"Info", L"History", state.openedPath.empty() ? L"No opened file." : L"File load history was recorded for this scope.");
 }
 
@@ -986,7 +986,7 @@ void PopulatePropertyPanel(ScopeShellState& state)
     state.propertyPanel.AddProperty(L"Expected scope", state.descriptor.expectedScope);
 
     state.propertyPanel.AddGroup(L"Selection");
-    state.propertyPanel.AddProperty(L"Selected item", state.workSelection.hasSelection ? Utf8ToWide(state.workSelection.displayLabel) : L"(none)");
+    state.propertyPanel.AddProperty(L"Selected item", state.workSelection.hasSelection ? Utf8ToWide(state.workSelection.displayLabel) : L"No item selected");
     state.propertyPanel.AddProperty(L"Selected domain", Utf8ToWide(state.workSelection.domain));
     state.propertyPanel.AddProperty(L"Selected type", Utf8ToWide(state.workSelection.itemType));
 

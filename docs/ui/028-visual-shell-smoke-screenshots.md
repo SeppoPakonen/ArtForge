@@ -43,10 +43,12 @@ Each app passes the shell smoke when the first window shows:
 
 - Menu and shared command bar.
 - Left navigation explorer with intentional roots.
-- Central document tabs with Start and Current Scope rhythm.
+- Central document tabs with Start/Overview and scope-specific read-only tabs.
 - Right inspector with sectioned properties.
-- Bottom panel with Output, Tasks, Provider, and History tabs.
-- Status bar with a concise current state.
+- Bottom panel with Output, Tasks, Provider, and History tabs plus severity
+  diagnostics.
+- Status bar with a concise current state and intentional disabled/empty-state
+  copy.
 - Consistent Windows GUI font, spacing, and pane margins.
 - No overlapping controls at the default window size.
 - No raw static debug dump as the primary center experience.
@@ -57,19 +59,20 @@ Each app passes the shell smoke when the first window shows:
 
 - Navigation root reads as a solution explorer.
 - Artists, series/projects, works, and diagnostics are grouped.
-- Start/current scope area shows the opened solution path and load status.
+- Start/overview area shows recent/example actions or the opened solution path
+  and load status.
 - Bottom panel includes load output and history/provider placeholders.
 
 ### Artist App
 
-- Empty state includes Current Scope, Open Recent, Examples, and Diagnostics.
+- Empty state includes Open, Recent, Examples, and Diagnostics.
 - Loaded state groups artist identity and projects.
 - Inspector separates Scope, Selection, File, Provider, and Diagnostics.
 
 ### Series App
 
 - Loaded state groups parent artist and ordered works.
-- Start/current scope tabs are visible.
+- Start/overview and scope-specific tabs are visible.
 - Bottom panel is present even when there are no active tasks.
 
 ### Work App
@@ -85,5 +88,10 @@ Win32 layout: left tree, static center text, raw right details list, and status
 bar. The target baseline after tasks `021` through `027` is a native Win32 shell
 with a visible command surface, document tab rhythm, intentional explorer,
 sectioned inspector, bottom output/task panel, and status bar.
+
+After the shell usability pass, empty and disabled states should read as
+intentional product UI: no-file startup presents Open/Recent/Examples rows,
+loaded files use scope-specific document tabs, diagnostics carry severity, and
+toolbar/menu commands disable according to presentation state.
 
 Docking, floating panes, and custom canvas rendering remain out of scope.
