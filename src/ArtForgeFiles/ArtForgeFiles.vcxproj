@@ -17,12 +17,14 @@
     <ClInclude Include="include\ArtForge\Files\DomainWorkViewModels.hpp" />
     <ClInclude Include="include\ArtForge\Files\FileModel.hpp" />
     <ClInclude Include="include\ArtForge\Files\ProjectGraph.hpp" />
+    <ClInclude Include="include\ArtForge\Files\RecentFiles.hpp" />
     <ClInclude Include="include\ArtForge\Files\ScopeFiles.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DomainWorkViewModels.cpp" />
     <ClCompile Include="src\FileModel.cpp" />
     <ClCompile Include="src\ProjectGraph.cpp" />
+    <ClCompile Include="src\RecentFiles.cpp" />
     <ClCompile Include="src\ScopeFiles.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

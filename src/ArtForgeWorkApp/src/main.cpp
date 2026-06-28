@@ -1,4 +1,5 @@
 #include "ArtForge/Files/DomainWorkViewModels.hpp"
+#include "ArtForge/Files/RecentFiles.hpp"
 #include "ArtForge/Files/ScopeFiles.hpp"
 #include "ArtForge/History/EventLog.hpp"
 #include "ArtForge/Prompting/PromptPackage.hpp"
@@ -165,6 +166,11 @@ bool IsSmokeProviderStatusHistoryCommand(int argumentCount, wchar_t** arguments)
 bool IsSmokeApiProviderCallHistoryCommand(int argumentCount, wchar_t** arguments)
 {
     return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-api-provider-call-history";
+}
+
+bool IsSmokeRecentFilesExampleIndexCommand(int argumentCount, wchar_t** arguments)
+{
+    return argumentCount >= 2 && std::wstring_view{arguments[1]} == L"--smoke-recent-files-example-index";
 }
 
 std::string WorkspaceLabel(std::string_view workDomain)
@@ -900,6 +906,52 @@ std::string SmokeApiProviderCallHistory()
     return output.str();
 }
 
+std::string SmokeRecentFilesExampleIndex()
+{
+    const auto path = std::filesystem::temp_directory_path() / "artforge-recent-files-smoke.json";
+    std::filesystem::remove(path);
+
+    std::vector<ArtForge::Files::RecentFileEntry> entries;
+    entries = ArtForge::Files::AddOrPromoteRecentFile(
+        entries,
+        {
+            std::filesystem::absolute("examples/work-domains/lyrics.afwork.json"),
+            ArtForge::Files::RecentScopeType::Work,
+            "Lyrics work",
+            "2026-06-28T00:00:00Z",
+            true,
+        });
+    entries = ArtForge::Files::AddOrPromoteRecentFile(
+        entries,
+        {
+            std::filesystem::absolute("examples/graph/sample.afsolution.json"),
+            ArtForge::Files::RecentScopeType::Solution,
+            "Sample solution graph",
+            "2026-06-28T00:01:00Z",
+            true,
+        });
+
+    const auto save = ArtForge::Files::SaveRecentFiles(path, entries);
+    const auto load = ArtForge::Files::LoadRecentFiles(path);
+    const auto examples = ArtForge::Files::BuildExampleFileIndex(std::filesystem::current_path());
+    std::filesystem::remove(path);
+
+    std::ostringstream output;
+    output << "Recent files smoke\n";
+    output << "Default recent path: " << ArtForge::Files::DefaultRecentFilesPath().generic_string() << "\n";
+    output << "Recent save: " << (save.ok ? "OK" : "failed") << "\n";
+    output << "Recent read: " << (load.ok ? "OK" : "failed") << "\n";
+    output << "Recent entries: " << load.entries.size() << "\n";
+    output << "Example entries: " << examples.size() << "\n";
+    for (const auto& example : examples) {
+        output << "- " << ArtForge::Files::ToStorageName(example.scope)
+               << ": " << example.displayName
+               << " -> " << example.path.generic_string()
+               << " [" << (example.exists ? "exists" : "missing") << "]\n";
+    }
+    return output.str();
+}
+
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int showCommand)
@@ -1107,6 +1159,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, wchar_t* commandLine, int sho
             && result.find("provider call requested") != std::string::npos
             && result.find("provider result rejected") != std::string::npos
             && result.find("authorization") != std::string::npos ? 0 : 2;
+    }
+    if (arguments != nullptr && IsSmokeRecentFilesExampleIndexCommand(argumentCount, arguments)) {
+        const auto result = SmokeRecentFilesExampleIndex();
+        WriteStdout(result);
+        LocalFree(arguments);
+        return result.find("Recent save: OK") != std::string::npos
+            && result.find("Recent read: OK") != std::string::npos
+            && result.find("Recent entries: 2") != std::string::npos
+            && result.find("Example entries: 6") != std::string::npos
+            && result.find("[missing]") == std::string::npos ? 0 : 2;
     }
     if (arguments != nullptr) {
         LocalFree(arguments);
